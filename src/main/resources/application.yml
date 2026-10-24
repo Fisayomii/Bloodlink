@@ -28,6 +28,11 @@ server:
   error:
     include-stacktrace: never
 
+app:
+  cors:
+    # Comma-separated. On the host: ALLOWED_ORIGINS=https://<your-site>.netlify.app
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+
 management:
   endpoints:
     web:

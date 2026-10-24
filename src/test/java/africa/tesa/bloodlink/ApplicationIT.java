@@ -47,6 +47,32 @@ class ApplicationIT {
         assertThat(response.statusCode()).isEqualTo(401);
     }
 
+    @Test
+    void preflightFromTheInterfaceIsAllowed() throws Exception {
+        HttpResponse<String> response = preflight("http://localhost:5173");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).contains("http://localhost:5173");
+    }
+
+    @Test
+    void preflightFromAnUnknownSiteIsRefused() throws Exception {
+        HttpResponse<String> response = preflight("https://not-our-site.example");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+    }
+
+    private HttpResponse<String> preflight(String origin) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/sessions"))
+            .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+            .header("Origin", origin)
+            .header("Access-Control-Request-Method", "POST")
+            .header("Access-Control-Request-Headers", "content-type,x-request-id")
+            .build();
+        return http.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
     private HttpResponse<String> get(String path) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
         return http.send(request, HttpResponse.BodyHandlers.ofString());

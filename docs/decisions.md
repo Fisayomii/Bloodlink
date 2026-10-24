@@ -25,6 +25,8 @@ Team 4: Okechukwu Daniel (service), Oluwafisayomi Aiyetogbon (service), Ufoma On
 | 2026-10-23 | Integration tests on real Postgres via Testcontainers; contract checked by Spectral now, Schemathesis against the deployed URL from Fri | Brief: "a real database rather than a substitute" | Oluwafisayomi Aiyetogbon, |
 | 2026-10-23 | Self-issued JWT (demonstration accounts, BCrypt passwords) | No real identity verification is allowed. Rejected: Keycloak or a hosted provider, as more moving parts on a free tier. | Oluwafisayomi Aiyetogbon, |
 | 2026-10-23 | Interface: React + TypeScript (Vite), types generated from the contract | Interface engineer's choice | Ufoma Onowho, |
+| 2026-10-24 | Separate repositories per tier: `bloodlink` (service, owns the contract) and `bloodlink-web` (interface, React + Tailwind) | Each side owns its repository and pipeline. The brief allows either layout; it asks for two live addresses per product. Rejected: one repository with `api/` and `web/`. Cost: the contract is copied into the interface repository, so it can drift. Mitigation: `contract:sync` plus a CI check in `bloodlink-web` that fails when its copy differs from `bloodlink` `main`. Reverse if the drift check fails repeatedly. To confirm with Chukwuma. | Oluwafisayomi Aiyetogbon, |
+| 2026-10-24 | Service allows cross-origin calls only from `ALLOWED_ORIGINS` (the interface's address) | The interface is a separate site; nothing else should call the service from a browser | |
 
 ## Hosting (free tiers only)
 
@@ -44,6 +46,7 @@ Deploy rule: the host's auto-deploy is **off**. GitHub Actions calls the host's 
 
 | Date | Change | Why | Agreed by |
 | --- | --- | --- | --- |
+| 2026-10-24 | Contract tooling moved to `contract/package.json`; service moved from `api/` to the repository root | Repository now holds only the service and the contract | |
 | 2026-10-23 | v0.1.0 created: `POST /sessions`, `GET /organisations`, `GET` and `POST /units`, `GET /availability`, `GET` and `POST /requests`, `GET /requests/{id}`, `POST /requests/{id}/approval`, `POST /requests/{id}/declination`, `GET /actuator/health`, shared `Error` shape | Monday journey 1 to 3 | Oluwafisayomi Aiyetogbon, Ufoma Onowho |
 | 2026-10-23 | Sign-in is `POST /sessions`, not `/auth/login`; decline is `POST /requests/{id}/declination`, not `/decline` | Brief: resources are named as things, not actions | |
 | 2026-10-23 | `POST /requests` requires an `Idempotency-Key` header; replay returns 200 and `Idempotent-Replayed: true` | Brief: at least one write safe to submit twice, with the client's part documented | |
@@ -57,3 +60,4 @@ Deploy rule: the host's auto-deploy is **off**. GitHub Actions calls the host's 
 3. When a reserved unit expires, should it end as `EXPIRED` or `DISCARDED`? (v0: `EXPIRED`, and the request becomes `UNIT_EXPIRED`.)
 4. Do donors need an account to book a slot?
 5. Is final submission on 3 or 5 November?
+6. (Chukwuma) Are separate interface and service repositories acceptable? The brief says "a public repository".

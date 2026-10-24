@@ -1,18 +1,13 @@
 name: api
 
 # Pull requests always run (no path filter): the checks below are required on main, and a required
-# check that never starts would block every PR that does not touch api/ or contract/.
+# check that never starts would block a PR that only touches docs.
 on:
   pull_request:
   push:
     branches: [main]
-    paths:
-      - 'api/**'
-      - 'contract/**'
-      - '.spectral.yaml'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/api.yml'
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 permissions:
@@ -32,9 +27,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: contract/package-lock.json
       - run: npm ci
+        working-directory: contract
       - name: Validate OpenAPI (Spectral, warnings fail)
         run: npm run lint:contract
+        working-directory: contract
 
   build-and-test:
     name: Build and test
@@ -48,15 +46,15 @@ jobs:
           cache: maven
       # validate (checkstyle) -> compile -> unit tests -> package -> integration tests on real Postgres (Testcontainers).
       - name: mvn verify
-        run: mvn -B -ntp -f api/pom.xml verify
+        run: mvn -B -ntp verify
       - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
           path: |
-            api/target/surefire-reports
-            api/target/failsafe-reports
+            target/surefire-reports
+            target/failsafe-reports
           retention-days: 7
 
   deploy:

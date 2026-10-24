@@ -3,9 +3,9 @@
   "private": true,
   "description": "Contract tooling for BloodLink: lint the OpenAPI file and run the mock server.",
   "scripts": {
-    "mock": "prism mock contract/openapi.yaml --port 4010 --host 0.0.0.0",
-    "mock:dynamic": "prism mock contract/openapi.yaml --port 4010 --host 0.0.0.0 --dynamic",
-    "lint:contract": "spectral lint contract/openapi.yaml --fail-severity=warn"
+    "mock": "prism mock openapi.yaml --port 4010 --host 0.0.0.0",
+    "mock:dynamic": "prism mock openapi.yaml --port 4010 --host 0.0.0.0 --dynamic",
+    "lint:contract": "spectral lint openapi.yaml --fail-severity=warn"
   },
   "devDependencies": {
     "@stoplight/prism-cli": "5.16.0",

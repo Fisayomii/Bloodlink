@@ -1,4 +1,4 @@
-# Build: docker build -t bloodlink-api ./api
+# Build: docker build -t bloodlink-api .
 # Run:   docker run -p 8080:8080 -e DATABASE_URL=jdbc:postgresql://host.docker.internal:5432/bloodlink bloodlink-api
 
 FROM maven:3.9-eclipse-temurin-25 AS build
