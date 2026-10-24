@@ -6,6 +6,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +47,18 @@ class ApplicationIT {
         HttpResponse<String> response = get("/units");
 
         assertThat(response.statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void swaggerPageAndTheCommittedContractAreServedWithoutAToken() throws Exception {
+        HttpResponse<String> page = get("/");
+        HttpResponse<String> contract = get("/openapi.yaml");
+
+        assertThat(page.statusCode()).isEqualTo(200);
+        assertThat(page.body()).contains("swagger-ui");
+        assertThat(contract.statusCode()).isEqualTo(200);
+        // Byte-for-byte the file in contract/, so the docs can never drift from the agreement.
+        assertThat(contract.body()).isEqualTo(Files.readString(Path.of("contract/openapi.yaml")));
     }
 
     @Test

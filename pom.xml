@@ -93,6 +93,33 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
+            <!-- Ships the committed contract inside the jar as /openapi.yaml, so the Swagger page (static/index.html)
+                 always shows the agreed document, never one generated from the code. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-contract</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/contract</directory>
+                                    <includes>
+                                        <include>openapi.yaml</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- *Test = unit tests (surefire, phase test). *IT = integration tests against real Postgres (failsafe, phase verify). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

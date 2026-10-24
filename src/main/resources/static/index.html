@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BloodLink API</title>
+  <!--
+    Swagger UI for the BloodLink contract. It shows contract/openapi.yaml exactly as committed
+    (copied into the build as /openapi.yaml), never a document generated from the code, so what
+    you see here is the agreement with the interface. "Try it out" calls this service.
+  -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.0/swagger-ui.css">
+  <style>
+    body { margin: 0; }
+    .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.0/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: '/openapi.yaml',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      // Keeps the token from "Authorize" across page reloads while you test.
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      tryItOutEnabled: true,
+      // Every call gets its own X-Request-Id, so you can find it in the service logs.
+      requestInterceptor: (request) => {
+        if (!request.headers['X-Request-Id']) {
+          request.headers['X-Request-Id'] = 'swagger-' + crypto.randomUUID();
+        }
+        return request;
+      },
+      onComplete: () => {
+        // Put "this service" first in the Servers list, so Try it out calls the service that
+        // served this page (localhost or the deployed address) rather than the mock.
+        const spec = window.ui.specSelectors.specJson().toJS();
+        const here = { url: window.location.origin, description: 'This service' };
+        spec.servers = [here, ...(spec.servers || []).filter((s) => s.url !== here.url)];
+        window.ui.specActions.updateJsonSpec(spec);
+        window.ui.oas3Actions.setSelectedServer(here.url);
+      },
+    });
+  </script>
+</body>
+</html>

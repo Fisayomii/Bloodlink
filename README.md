@@ -39,6 +39,18 @@ then the interface runs `contract:sync`.
 
 Tests: `mvn verify` runs checkstyle, unit tests and integration tests on a real Postgres (Testcontainers, needs Docker).
 
+## API docs (Swagger UI)
+
+With the service running, open **http://localhost:8080/** (or the deployed address).
+
+- It shows `contract/openapi.yaml` exactly as committed (packaged into the jar and served at `/openapi.yaml`),
+  not a document generated from the code. A test checks the served file matches the committed one.
+- **Servers** defaults to "This service", so **Try it out** calls the running service. Pick the Prism mock to compare.
+- Each call gets its own `X-Request-Id` (`swagger-...`), so you can find it in the service logs.
+- Paths that are in the contract but not built yet return 401, or 404 once signed in. That is expected until each feature lands.
+- Start the app with `mvn spring-boot:run`. Running the main class straight from IntelliJ skips the Maven step that copies the
+  contract, so `/openapi.yaml` would be missing.
+
 ## Contract and mock
 
 Needs Node 22.
