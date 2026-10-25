@@ -5,6 +5,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -81,6 +83,29 @@ public abstract class AbstractPostgresIT {
             throw new IllegalStateException("Sign-in failed for " + email + ": " + response.statusCode() + " " + response.body());
         }
         return JsonPath.read(response.body(), "$.accessToken");
+    }
+
+    /** Creates a request as a hospital account through POST /requests (needed in 4 hours) and returns its id. */
+    protected String createRequest(String hospitalStaffEmail, UUID bankId, String group, String rhesus, String component,
+                                   int quantity, String urgency) throws Exception {
+        HttpResponse<String> response = send(request("/requests")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + signIn(hospitalStaffEmail))
+            .header("Idempotency-Key", UUID.randomUUID().toString())
+            .POST(HttpRequest.BodyPublishers.ofString(requestJson(bankId, group, rhesus, component, quantity, urgency)))
+            .build());
+        if (response.statusCode() != 201) {
+            throw new IllegalStateException("Request failed: " + response.statusCode() + " " + response.body());
+        }
+        return JsonPath.read(response.body(), "$.id");
+    }
+
+    /** A POST /requests body, needed four hours from now. */
+    protected static String requestJson(UUID bankId, String group, String rhesus, String component, int quantity,
+                                        String urgency) {
+        return """
+            {"bankId":"%s","bloodGroup":"%s","rhesus":"%s","component":"%s","quantity":%d,"urgency":"%s","neededBy":"%s"}"""
+            .formatted(bankId, group, rhesus, component, quantity, urgency, Instant.now().plusSeconds(4 * 3600));
     }
 
     /** Reads one value from a JSON body, e.g. json(body, "$.user.role"). */
