@@ -75,6 +75,9 @@ Send `X-Request-Id` from the interface and search the logs for it to follow one 
 | `DATABASE_URL` | `jdbc:postgresql://host:5432/db?sslmode=require` | JDBC form, not `postgres://` |
 | `DATABASE_USERNAME`, `DATABASE_PASSWORD` | | From the managed Postgres |
 | `ALLOWED_ORIGINS` | `https://bloodlink.netlify.app` | The interface's address, comma-separated. Anything else is refused by CORS. |
+| `JWT_SECRET` | 48+ random characters | Signs access tokens. Required on the host; the local default logs a warning |
+| `JWT_TTL` | `8h` | How long a sign-in lasts (contract: 8 hours) |
+| `LIQUIBASE_CONTEXTS` | `demo` | `demo` loads the demonstration accounts; `none` leaves them out |
 | `PORT` | `8080` | Most hosts set it |
 | `DB_POOL_SIZE` | `5` | Keep small on free tiers |
 
@@ -86,7 +89,23 @@ Send `X-Request-Id` from the interface and search the logs for it to follow one 
 
 ## Demonstration accounts
 
-_To add with the seed data (Sun 25 Oct)._
+All fictional. Every account's password is **`Demo-Password-1`**.
+
+| Role | Email | Organisation |
+| --- | --- | --- |
+| Administrator | `admin@bloodlink.demo` | none |
+| Bank staff | `staff@lagos-central.bank.demo` | Lagos Central Blood Bank (demo), Ikeja |
+| Bank staff | `staff@lekki.bank.demo` | Lekki Regional Blood Centre (demo), Lekki |
+| Bank staff | `staff@surulere.bank.demo` | Surulere Community Blood Bank (demo), Surulere |
+| Hospital staff | `staff@yaba.hospital.demo` | Yaba General Hospital (demo), Yaba |
+| Hospital staff | `staff@ikorodu.hospital.demo` | Ikorodu Children's Hospital (demo), Ikorodu |
+| Hospital staff | `staff@vi.hospital.demo` | Victoria Island Medical Centre (demo), Victoria Island |
+| Donor | `donor@bloodlink.demo` | none |
+
+**Try it in Swagger** (http://localhost:8080/): open **POST /sessions → Try it out**, sign in with one of the accounts above,
+copy `accessToken` from the response, click **Authorize** (padlock, top right), paste it, and every call now runs as that user.
+
+The accounts come from `002-demo-accounts.sql`, loaded by the Liquibase context `demo`. Set `LIQUIBASE_CONTEXTS=none` to leave them out.
 
 ## Simulated or out of scope
 

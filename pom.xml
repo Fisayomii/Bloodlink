@@ -33,6 +33,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!-- Signs and checks the access tokens (JWT, HS256) with Spring Security's Nimbus support. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
         <!-- Plain SQL through JdbcClient (no JPA): the business rules depend on exact SQL such as conditional
              updates and SKIP LOCKED, and explicit SQL is easier to review and explain. -->
         <dependency>

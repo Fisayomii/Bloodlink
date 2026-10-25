@@ -17,6 +17,13 @@ spring:
     # On for v0 so a fresh deploy migrates itself. From Fri the pipeline runs migrations before the deploy
     # and the host sets LIQUIBASE_ENABLED=false.
     enabled: ${LIQUIBASE_ENABLED:true}
+    # "demo" loads the demonstration organisations and accounts (002-demo-accounts.sql). Set LIQUIBASE_CONTEXTS=none
+    # to deploy without them (an empty value would run every changeset, demo included).
+    contexts: ${LIQUIBASE_CONTEXTS:demo}
+  jackson:
+    deserialization:
+      # Refuse request bodies with fields the contract does not list (for example a patient name).
+      fail-on-unknown-properties: true
 
 server:
   port: ${PORT:8080}
@@ -25,6 +32,12 @@ server:
     include-stacktrace: never
 
 app:
+  jwt:
+    # HMAC-SHA256 signing key, at least 32 characters. On the host set JWT_SECRET to a long random value.
+    # The default is for local development only; the service logs a warning when it is used.
+    secret: ${JWT_SECRET:local-development-only-secret-do-not-deploy-0000}
+    # How long a sign-in lasts. The contract says 8 hours.
+    time-to-live: ${JWT_TTL:8h}
   cors:
     # Comma-separated. On the host: ALLOWED_ORIGINS=https://<your-site>.netlify.app
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
