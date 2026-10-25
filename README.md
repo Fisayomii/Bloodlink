@@ -8,8 +8,8 @@ Matching is by the exact blood group, rhesus type and component entered.
 
 | | Address |
 | --- | --- |
-| Interface | _to add after first deploy_ |
-| Service | _to add after first deploy_ |
+| Interface | https://bloodlink-orpin.vercel.app |
+| Service | https://bloodlink-o2ie.onrender.com |
 
 ## Repository
 
