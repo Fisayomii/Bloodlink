@@ -36,6 +36,22 @@ Three layers, so that removing any single one is caught by a test:
    Zero rows updated means someone else got there first, and the request is refused with 409.
 3. **`SELECT ... FOR UPDATE SKIP LOCKED`** when choosing units, so concurrent approvals do not queue on the same row (batch 4).
 
+## What a unit's state really is: the `unit_status` view
+
+The stored state can lag behind the clock: a unit stays `RESERVED` after its hold lapses until something releases it,
+and `AVAILABLE` after its expiry date until the expiry job marks it. Every read therefore uses `effective_state` from
+the `unit_status` view (`003-unit-status.sql`):
+
+| Stored state | Situation | Shown as |
+| --- | --- | --- |
+| `AVAILABLE` or `RESERVED` | expiry date has passed (Lagos date) | `EXPIRED` |
+| `RESERVED` | no ACTIVE reservation whose hold is still running | `AVAILABLE` |
+| anything else | | as stored |
+
+So a lapsed hold is never shown as held, even if the background job has not run for an hour. Reading never changes
+stored data; write paths and the jobs make the change for real. Dates are Lagos dates: every database connection runs
+`SET TIME ZONE 'Africa/Lagos'`.
+
 ## Indexes and the queries they serve
 
 The full analysis (rows examined versus returned, and behaviour as tables grow) is due on Fri 30 Oct.
@@ -43,6 +59,7 @@ The full analysis (rows examined versus returned, and behaviour as tables grow) 
 | Index | Serves |
 | --- | --- |
 | `unit_available_idx` (group, rhesus, component, bank, expiry) `WHERE state = 'AVAILABLE'` | Availability search |
+| `unit_reserved_idx` (group, rhesus, component, bank) `WHERE state = 'RESERVED'` | The "lapsed hold" half of availability search |
 | `unit_bank_expiry_idx` (bank, expiry) | A bank's unit list; the expiry sweep |
 | `blood_request_hospital_idx` (hospital, created_at desc) | A hospital's requests, newest first |
 | `blood_request_bank_idx` (bank, state, created_at desc) | Requests addressed to a bank, by state |
@@ -51,6 +68,19 @@ The full analysis (rows examined versus returned, and behaviour as tables grow) 
 | `reservation_active_hold_expiry_idx` (hold_expires_at) `WHERE status = 'ACTIVE'` | The hold-lapse sweep; "reservations about to lapse" |
 | `activity_entity_idx` (entity type, entity id, at) | A unit's or request's history |
 | `activity_at_idx` (at desc) | Recent activity on the dashboard |
+
+### Measured: availability search on 50,000 units
+
+`GET /availability?bloodGroup=O&rhesus=NEGATIVE&component=RED_CELLS`, PostgreSQL 16, 50,000 units across three banks,
+measured on 2026-10-25:
+
+| | |
+| --- | --- |
+| Plan | `BitmapOr` of `unit_available_idx` and `unit_reserved_idx`; no table scan |
+| Rows examined | 417 |
+| Rows returned (before grouping) | 417 |
+| Time | 1.3 ms |
+| As the table grows | Rows examined track the matching units, not the table size, because both indexes are partial and filtered on the search terms |
 
 **Index deliberately not created:** none on `unit (state)` alone. Only five values exist, so it would rarely narrow a search enough to be used,
 and the partial `unit_available_idx` already covers the one state that is searched heavily.

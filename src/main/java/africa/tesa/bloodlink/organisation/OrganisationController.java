@@ -1,6 +1,7 @@
 package africa.tesa.bloodlink.organisation;
 
 import africa.tesa.bloodlink.web.ApiException;
+import java.sql.Types;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -36,8 +37,8 @@ public class OrganisationController {
                  WHERE (CAST(:type AS text) IS NULL OR type = :type)
                    AND (CAST(:area AS text) IS NULL OR lower(area) = lower(:area))
                  ORDER BY name""")
-            .param("type", type == null ? null : type.name())
-            .param("area", area)
+            .param("type", type == null ? null : type.name(), Types.VARCHAR)
+            .param("area", area, Types.VARCHAR)
             .query((rs, row) -> new OrganisationView(
                 rs.getObject("id", UUID.class),
                 rs.getString("name"),

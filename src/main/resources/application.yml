@@ -12,6 +12,8 @@ spring:
     hikari:
       # Free Postgres tiers allow few connections; keep the pool small.
       maximum-pool-size: ${DB_POOL_SIZE:5}
+      # Dates in the database ("today", expiry dates) follow Lagos time. Stored times (timestamptz) are unaffected.
+      connection-init-sql: SET TIME ZONE 'Africa/Lagos'
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     # On for v0 so a fresh deploy migrates itself. From Fri the pipeline runs migrations before the deploy
@@ -32,6 +34,8 @@ server:
     include-stacktrace: never
 
 app:
+  # Business dates (is a unit expired today?) are Lagos dates.
+  time-zone: Africa/Lagos
   jwt:
     # HMAC-SHA256 signing key, at least 32 characters. On the host set JWT_SECRET to a long random value.
     # The default is for local development only; the service logs a warning when it is used.

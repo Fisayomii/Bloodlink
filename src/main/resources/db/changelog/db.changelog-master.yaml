@@ -12,3 +12,5 @@ databaseChangeLog:
       file: db/changelog/changes/001-core.sql
   - include:
       file: db/changelog/changes/002-demo-accounts.sql
+  - include:
+      file: db/changelog/changes/003-unit-status.sql
