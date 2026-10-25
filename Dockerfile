@@ -8,6 +8,8 @@ COPY pom.xml .
 COPY config ./config
 RUN mvn -B -q dependency:go-offline
 COPY src ./src
+# The contract is packaged into the jar and served at /openapi.yaml for the Swagger page.
+COPY contract/openapi.yaml ./contract/openapi.yaml
 # Tests run in CI before any deploy; the image build only packages.
 RUN mvn -B -q package -DskipTests -Dcheckstyle.skip
 

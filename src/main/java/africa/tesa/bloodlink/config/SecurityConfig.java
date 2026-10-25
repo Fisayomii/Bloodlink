@@ -37,6 +37,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.POST, "/sessions").permitAll()
+                // API docs: the Swagger page and the contract it shows. Both are public, like the repository.
+                .requestMatchers(HttpMethod.GET, "/", "/index.html", "/openapi.yaml", "/favicon.ico").permitAll()
                 .anyRequest().authenticated())
             // Unauthenticated calls get 401, not Spring's default 403, as the contract says.
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));

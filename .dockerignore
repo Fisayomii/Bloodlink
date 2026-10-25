@@ -3,7 +3,8 @@ target/
 .idea/
 .git/
 .github/
-contract/
+contract/*
+!contract/openapi.yaml
 docs/
 **/node_modules/
 *.md
