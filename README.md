@@ -62,6 +62,12 @@ npm run lint:contract   # Spectral: fails on any warning, and on an operation mi
 npm run mock            # Prism mock on http://localhost:4010
 ```
 
+## Logs
+
+Every line carries the request id, e.g. `INFO [web-7f9c2b1e]`, and each request writes one access line (method, path, status, time).
+Send `X-Request-Id` from the interface and search the logs for it to follow one user's journey. On the host, set
+`LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs` to get one JSON object per line.
+
 ## Host settings
 
 | Variable | Example | Notes |

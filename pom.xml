@@ -33,10 +33,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
-        <!-- Includes spring-boot-starter-jdbc (JdbcTemplate) transitively; the rule-critical updates use plain SQL. -->
+        <!-- Plain SQL through JdbcClient (no JPA): the business rules depend on exact SQL such as conditional
+             updates and SKIP LOCKED, and explicit SQL is easier to review and explain. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

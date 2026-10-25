@@ -1,0 +1,19 @@
+package africa.tesa.bloodlink.web;
+
+/**
+ * The stable error codes from the contract (components.schemas.Error.code). The interface switches on these,
+ * never on the message, so a code is never renamed without a contract change.
+ */
+public enum ErrorCode {
+    MALFORMED_REQUEST,
+    UNAUTHENTICATED,
+    INVALID_CREDENTIALS,
+    FORBIDDEN,
+    NOT_FOUND,
+    VALIDATION_FAILED,
+    IDEMPOTENCY_KEY_REUSED,
+    DUPLICATE_UNIT_REFERENCE,
+    UNITS_NO_LONGER_AVAILABLE,
+    REQUEST_NOT_PENDING,
+    INTERNAL_ERROR
+}
