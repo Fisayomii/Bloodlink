@@ -34,7 +34,15 @@ Three layers, so that removing any single one is caught by a test:
    The database itself refuses a second active hold on a unit. This is the backstop.
 2. **Guarded state change** in the approval transaction: `UPDATE unit SET state = 'RESERVED' WHERE id = ? AND state = 'AVAILABLE'`.
    Zero rows updated means someone else got there first, and the request is refused with 409.
-3. **`SELECT ... FOR UPDATE SKIP LOCKED`** when choosing units, so concurrent approvals do not queue on the same row (batch 4).
+3. **`SELECT ... FOR UPDATE SKIP LOCKED`** when choosing units, so concurrent approvals do not queue on the same row.
+
+Measured on 2026-10-25 (three connections racing the approval SQL, 5 rounds each): with the protection, one success and
+two refusals every round, one active hold; with all three layers removed, three successes every round, three active
+holds on one unit. `ConcurrentApprovalIT` repeats this through the HTTP service in CI; see `docs/evidence.md`.
+
+Reservations and requests have status views like units (`004-request-status.sql`): an ACTIVE reservation past its hold
+shows `LAPSED`, one whose unit has expired shows `UNIT_EXPIRED`, and an APPROVED request with nothing held shows
+`LAPSED` (or `UNIT_EXPIRED`).
 
 ## What a unit's state really is: the `unit_status` view
 

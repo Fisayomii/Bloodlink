@@ -42,6 +42,12 @@ app:
     secret: ${JWT_SECRET:local-development-only-secret-do-not-deploy-0000}
     # How long a sign-in lasts. The contract says 8 hours.
     time-to-live: ${JWT_TTL:8h}
+  holds:
+    # How long an approved reservation holds its units before they return to stock, by request urgency.
+    # PROVISIONAL starting position for the design problem (ADR-002): the team decides and records the final values.
+    routine: ${HOLD_ROUTINE:4h}
+    urgent: ${HOLD_URGENT:2h}
+    emergency: ${HOLD_EMERGENCY:1h}
   cors:
     # Comma-separated. On the host: ALLOWED_ORIGINS=https://<your-site>.netlify.app
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
