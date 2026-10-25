@@ -70,9 +70,17 @@ public class GlobalExceptionHandler {
             List.of(new ApiError.FieldIssue(ex.getHeaderName(), "Required header is missing.")));
     }
 
-    /** The body is not JSON, or a field has the wrong type (for example text where a number belongs). */
+    /**
+     * The body is not JSON, or a field has the wrong type (400), or the body has a field the contract does not list
+     * (422). Refusing unknown fields is what keeps a patient name out: there is no field for one, so sending one fails.
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> onUnreadableBody(HttpMessageNotReadableException ex) {
+        // Matched by name so this works whichever Jackson version is on the classpath.
+        if ("UnrecognizedPropertyException".equals(ex.getMostSpecificCause().getClass().getSimpleName())) {
+            return respond(ApiException.UNPROCESSABLE, ErrorCode.VALIDATION_FAILED,
+                "The body contains a field that is not allowed. Send only the fields in the contract.");
+        }
         return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST,
             "The body could not be read. Send JSON that matches the contract.");
     }

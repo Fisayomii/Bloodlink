@@ -12,6 +12,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -19,9 +20,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
- * Stateless security: everything is closed except health, sign-in and the API docs.
+ * Stateless security with bearer tokens (see auth/TokenConfig). Everything is closed except health, sign-in and the
+ * API docs.
+ *
+ * <p>Two levels of access control, both enforced here in the service, never by the interface:
+ * <ol>
+ *   <li><b>Role rules per path</b>, below: for example only bank staff may record units. A wrong role gets 403.</li>
+ *   <li><b>Organisation rules</b> in the services: for example bank staff may change only their own bank's units.</li>
+ * </ol>
  * 401 and 403 are handed to GlobalExceptionHandler, so they use the contract's Error shape like every other failure.
- * Token checking and roles arrive with the sign-in work (batch 2).
  */
 @Configuration
 public class SecurityConfig {
@@ -29,7 +36,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver errors) throws Exception {
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver errors,
+            JwtAuthenticationConverter tokenToUser) throws Exception {
         http
             // A token-based API with no cookies, so there is no CSRF exposure to protect against.
             // The interface is a separate site on its own address, so the browser needs CORS (see corsConfigurationSource).
@@ -45,7 +53,21 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/sessions").permitAll()
                 // API docs: the Swagger page and the contract it shows. Both are public, like the repository.
                 .requestMatchers(HttpMethod.GET, "/", "/index.html", "/openapi.yaml", "/favicon.ico").permitAll()
+                // Role rules, one line per operation in the contract that is limited to certain roles.
+                // Removing any of these makes RoleRulesIT fail.
+                .requestMatchers(HttpMethod.GET, "/units").hasAnyRole("BANK_STAFF", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/units").hasRole("BANK_STAFF")
+                .requestMatchers(HttpMethod.GET, "/requests").hasAnyRole("BANK_STAFF", "HOSPITAL_STAFF", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/requests").hasRole("HOSPITAL_STAFF")
+                .requestMatchers(HttpMethod.POST, "/requests/*/approval", "/requests/*/declination")
+                    .hasAnyRole("BANK_STAFF", "ADMIN")
+                // Everything else (organisations, availability, one request) needs any signed-in user.
                 .anyRequest().authenticated())
+            // Reads "Authorization: Bearer <token>", checks its signature and expiry, and takes the role from it.
+            .oauth2ResourceServer(tokens -> tokens
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(tokenToUser))
+                .authenticationEntryPoint((request, response, ex) -> errors.resolveException(request, response, null, ex))
+                .accessDeniedHandler((request, response, ex) -> errors.resolveException(request, response, null, ex)))
             // No or bad token -> 401 UNAUTHENTICATED; wrong role -> 403 FORBIDDEN. Both go through
             // GlobalExceptionHandler so the body is the contract's Error shape with the request id.
             .exceptionHandling(e -> e
