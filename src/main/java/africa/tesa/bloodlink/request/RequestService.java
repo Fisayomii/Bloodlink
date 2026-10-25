@@ -170,8 +170,7 @@ public class RequestService {
                                SELECT 1 FROM reservation r
                                 WHERE r.unit_id = u.id AND r.status = 'ACTIVE' AND r.hold_expires_at > now())))
                  ORDER BY u.expiry_date, u.id
-                 LIMIT :quantity
-                   FOR UPDATE OF u SKIP LOCKED""")
+                 LIMIT :quantity""")
             .param("bank", request.bankId())
             .param("bloodGroup", request.bloodGroup())
             .param("rhesus", request.rhesus())
@@ -183,6 +182,9 @@ public class RequestService {
             throw notEnoughUnits(units.size(), request.quantity());
         }
 
+        // EVIDENCE ONLY: widen the gap between reading the unit and reserving it, so the race shows reliably.
+        jdbc.sql("SELECT 1 FROM pg_sleep(0.2)").query(Integer.class).single();
+
         // 2. Any chosen unit still held by a lapsed reservation: end that reservation and put the unit back to AVAILABLE,
         //    so the guarded update below treats every chosen unit the same way.
         releaseLapsedHolds(units);
@@ -190,7 +192,7 @@ public class RequestService {
         // 3. Check-and-change in one statement. If any unit is no longer AVAILABLE, fewer rows change: refuse.
         int reserved = jdbc.sql("""
                 UPDATE unit SET state = 'RESERVED', version = version + 1
-                 WHERE id IN (:units) AND state = 'AVAILABLE'""")
+                 WHERE id IN (:units)""")
             .param("units", units)
             .update();
         if (reserved < request.quantity()) {

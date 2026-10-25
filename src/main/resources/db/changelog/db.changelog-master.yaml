@@ -16,3 +16,6 @@ databaseChangeLog:
       file: db/changelog/changes/003-unit-status.sql
   - include:
       file: db/changelog/changes/004-request-status.sql
+  # EVIDENCE ONLY. Never merge.
+  - include:
+      file: db/changelog/changes/999-evidence-drop-hold-index.sql
