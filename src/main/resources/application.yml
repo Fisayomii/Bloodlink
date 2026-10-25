@@ -13,7 +13,13 @@ spring:
       # Free Postgres tiers allow few connections; keep the pool small.
       maximum-pool-size: ${DB_POOL_SIZE:5}
       # Dates in the database ("today", expiry dates) follow Lagos time. Stored times (timestamptz) are unaffected.
+      # This is a per-connection setting, so use the database's DIRECT connection, not a transaction pooler.
       connection-init-sql: SET TIME ZONE 'Africa/Lagos'
+      # Neon suspends an idle database after 5 minutes; the first connection after that can take a second or two.
+      connection-timeout: 30000
+      # Close connections before a serverless database drops them on its side. No keepalive on purpose: pinging idle
+      # connections would stop Neon from ever suspending and use up its free compute hours.
+      max-lifetime: 600000
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     # On for v0 so a fresh deploy migrates itself. From Fri the pipeline runs migrations before the deploy
@@ -30,6 +36,11 @@ spring:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # Gzip JSON responses over 1 KB: lists of units and requests shrink several times over a slow mobile connection.
+  compression:
+    enabled: true
+    mime-types: application/json,application/yaml,text/html,text/css,application/javascript
+    min-response-size: 1KB
   error:
     include-stacktrace: never
 

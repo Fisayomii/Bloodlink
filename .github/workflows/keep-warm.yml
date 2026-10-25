@@ -1,0 +1,31 @@
+name: keep-warm
+
+# Render's free services sleep after 15 minutes without traffic and take a while to wake. On demo and assessment days
+# this pings the health endpoint every 10 minutes so nobody meets a sleeping service.
+#
+# Off by default. Turn it on for a demo day: repository Settings > Secrets and variables > Actions > Variables,
+# set KEEP_WARM = true; set it back to false afterwards. Render's 750 free hours a month are shared by every service in
+# the workspace, so keeping services awake around the clock would use them up.
+# GitHub may delay scheduled runs by a few minutes, so wake the service by hand just before presenting as well.
+on:
+  schedule:
+    # Every 10 minutes from 06:00 to 19:50 UTC (07:00 to 20:50 in Lagos), every day.
+    - cron: '*/10 6-19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping health
+    if: vars.KEEP_WARM == 'true' && vars.API_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: GET /actuator/health
+        env:
+          API_URL: ${{ vars.API_URL }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          curl -fsS --max-time 120 -H "X-Request-Id: keep-warm-$RUN_ID" "$API_URL/actuator/health"
