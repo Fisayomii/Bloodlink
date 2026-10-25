@@ -16,3 +16,5 @@ databaseChangeLog:
       file: db/changelog/changes/003-unit-status.sql
   - include:
       file: db/changelog/changes/004-request-status.sql
+  - include:
+      file: db/changelog/changes/005-demo-data.sql
