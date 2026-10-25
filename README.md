@@ -79,7 +79,14 @@ Send `X-Request-Id` from the interface and search the logs for it to follow one 
 | `JWT_TTL` | `8h` | How long a sign-in lasts (contract: 8 hours) |
 | `LIQUIBASE_CONTEXTS` | `demo` | `demo` loads the demonstration accounts; `none` leaves them out |
 | `PORT` | `8080` | Most hosts set it |
+| `LOGGING_STRUCTURED_FORMAT_CONSOLE` | `ecs` | One JSON object per log line on the host |
 | `DB_POOL_SIZE` | `5` | Keep small on free tiers |
+
+## Deployment
+
+Render (service, Docker) and Neon (PostgreSQL), both free and in Frankfurt. Step by step, including settings and the
+free-tier terms checked: `docs/deploy.md`. On demo days set the repository variable `KEEP_WARM=true` so the free service
+does not fall asleep.
 
 ## Pipeline
 

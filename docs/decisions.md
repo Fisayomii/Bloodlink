@@ -52,17 +52,23 @@ Team 4: Okechukwu Daniel (service), Oluwafisayomi Aiyetogbon (service), Ufoma On
 
 ## Hosting (free tiers only)
 
-Check each provider's own pricing page before relying on it. Record what it says and the date checked.
+Checked on each provider's own pricing or documentation page. Full steps in `docs/deploy.md`.
 
 | Date checked | Tier | Provider and plan | Sleeps when idle? | Hours or credit limit | Database expiry or pause | Checked by |
 | --- | --- | --- | --- | --- | --- | --- |
-| | Service (Docker) | | | | n/a | |
-| | Database | | | | | |
-| | Interface (static) | | | | n/a | |
-
-Team 4 needs two services and two databases (BloodLink and FairSeat). Confirm how many free projects or databases one account allows.
+| 2026-10-25 | Service (Docker) | Render, Free web service, Frankfurt | Yes, after 15 minutes without traffic | 750 instance hours per workspace per month (shared with FairSeat) | n/a | Oluwafisayomi Aiyetogbon |
+| 2026-10-25 | Database | Neon, Free plan, AWS Frankfurt | Compute suspends after 5 minutes idle; resumes on next connection | 100 compute-hours per project per month; 1 GB per project | None: permanent plan; limits suspend compute, never delete data | Oluwafisayomi Aiyetogbon |
+| | Interface (static) | _Ufoma to fill_ | | | n/a | |
 
 Deploy rule: the host's auto-deploy is **off**. GitHub Actions calls the host's deploy hook only after contract lint and build-and-test pass on `main`.
+
+| Date | Decision | Why | Agreed by |
+| --- | --- | --- | --- |
+| 2026-10-25 | Deploy on Render (service) and Neon (database), both Frankfurt, instead of Qocent | The facilitators asked for Qocent; it was unreachable on 24 and 25 Oct and the Monday checkpoint needs a live service. Same Docker image, so moving later changes only the deploy step. Supervisor informed. | Oluwafisayomi Aiyetogbon, |
+| 2026-10-25 | Database on Neon rather than Supabase or Render Postgres | Render's free Postgres is deleted after 30 days; Supabase pauses a project after a week without activity (assessors may look later) and its direct connection is IPv6-only, which Render cannot reach. Cost: about half a second to wake Neon after 5 idle minutes. | Oluwafisayomi Aiyetogbon, |
+| 2026-10-25 | Faster cold starts: Java 25 ahead-of-time cache recorded by a practice start during the image build, jar unpacked, C1 compiler only (`TieredStopAtLevel=1`) | The free service sleeps; waking time is what users notice. Cost: lower peak throughput from C1 only. Reverse if the load test shows the service CPU-bound. | Oluwafisayomi Aiyetogbon, |
+| 2026-10-25 | Keep-warm ping (`keep-warm.yml`), off by default, switched on by the `KEEP_WARM` variable on demo days only | Free hours are shared across the workspace; keeping two services awake around the clock would exhaust them | Oluwafisayomi Aiyetogbon, |
+| 2026-10-25 | Migrations run when the service starts (Liquibase on startup) | Simplest reliable path for the first deploys; moving them into the pipeline before the deploy is planned with the rollback check (Fri 30 Oct) | Oluwafisayomi Aiyetogbon, |
 
 ## Contract changes
 
