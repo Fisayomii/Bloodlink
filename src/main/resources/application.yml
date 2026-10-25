@@ -12,10 +12,6 @@ spring:
     hikari:
       # Free Postgres tiers allow few connections; keep the pool small.
       maximum-pool-size: ${DB_POOL_SIZE:5}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     # On for v0 so a fresh deploy migrates itself. From Fri the pipeline runs migrations before the deploy
@@ -32,6 +28,12 @@ app:
   cors:
     # Comma-separated. On the host: ALLOWED_ORIGINS=https://<your-site>.netlify.app
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+
+logging:
+  pattern:
+    # Adds the request id to every log line, e.g. "INFO [swagger-1f2e...]". Locally this stays readable text.
+    # On the host set LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs for one JSON object per line (request id included).
+    level: "%5p [%X{requestId:-}]"
 
 management:
   endpoints:
