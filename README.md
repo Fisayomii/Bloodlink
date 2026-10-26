@@ -1,7 +1,8 @@
 # BloodLink service
 
 Help hospitals find and reserve available blood units before time runs out. TeSA cohort 6 capstone, Team 4.
-This repository is the **service tier** (Java). The interface lives in its own repository: _bloodlink-web link to add_.
+This repository is the **service tier** (Java). The interface (React + Tailwind, by Ufoma Onowho) lives in its own
+repository, `bloodlink-web`, and is deployed at the address below.
 
 All data is fictional. The product makes no clinical decision, does no compatibility testing and never stores patient details.
 Matching is by the exact blood group, rhesus type and component entered.
@@ -18,6 +19,11 @@ contract/openapi.yaml   The agreement between interface and service: the single 
 contract/package.json   Node tooling for the contract only (Spectral lint, Prism mock)
 src/                    Spring Boot 4.1 service, Java 25
 docs/decisions.md       Every decision and contract change, dated, with two names
+docs/adr/               Five decision records (context, decision, rejected options, cost, what would reverse it)
+docs/data-model.md      Tables, the rules each constraint protects, indexes and measured query plans
+docs/evidence.md        The concurrency test passing, and failing with the protection removed
+docs/ai-log.md          AI tools used, what was accepted, and what was checked and found wrong
+scripts/                Seed-data generator; the race check against the deployed service
 ```
 
 **The contract lives here and only here.** The interface repository copies it with `npm run contract:sync`,
@@ -93,6 +99,9 @@ does not fall asleep.
 `.github/workflows/api.yml`: **Contract lint** and **Build and test** run on every pull request and every push to `main`.
 **Deploy** runs only on `main` after both pass. It calls the host's deploy hook (`API_DEPLOY_HOOK` secret) and waits for
 `/actuator/health` at `API_URL` (repository variable). Turn the host's own auto-deploy off.
+After the deploy, **Rule check on the deployed service** runs `scripts/race-deployed.mjs`: three hospitals ask the live
+service for the last unit of a group and the bank's three approvals are sent together; exactly one must succeed.
+Run it yourself with `node scripts/race-deployed.mjs https://bloodlink-o2ie.onrender.com` (Node 22).
 
 ## Demonstration accounts
 
@@ -131,6 +140,16 @@ Cases worth showing:
 | Lapsed holds, declined requests with reasons, issued units, cancelled requests | `GET /requests` as the administrator |
 | AB-negative running low (one unit per bank) | `GET /availability?bloodGroup=AB&rhesus=NEGATIVE` |
 
+## The rule this product depends on
+
+A unit is reserved for at most one request at a time, even when three hospitals ask for the last unit in the same second.
+Three layers in the database protect it (ADR-001). `ConcurrentApprovalIT` proves it in CI on every pull request, the
+pipeline repeats it against the deployed service, and `docs/evidence.md` records the same test failing with the
+protection removed.
+
+Background work, and what happens if it does not run for an hour: nothing visible changes. Lapsed holds and expired units
+are computed on every read (ADR-003), so a lapsed hold is never shown as held and an expired unit is never offered.
+
 ## Simulated or out of scope
 
 - No real blood bank, hospital, donor or patient is involved; every name is fictional and marked "(demo)".
@@ -139,3 +158,14 @@ Cases worth showing:
 - Seeded FULFILLED and CANCELLED requests were written directly as data; issuing units and cancelling requests through the
   service arrive in a later version.
 - No SMS, push, payments or courier arrangements.
+
+## Known limitations (26 Oct checkpoint)
+
+- **Not built yet:** issuing units and reversing an issue, the hold and expiry sweep jobs (reads are already correct
+  without them), donation slots and bookings, the dashboard, a hospital cancelling its own request, and bank staff
+  releasing a routine hold for an emergency (ADR-002). Planned for 27–30 Oct.
+- **Partial approval** is not allowed: approval reserves every unit asked for, or nothing. Asked the client.
+- **Free hosting sleeps:** the first request after 15 idle minutes waits for the service to wake (measured 28 s).
+- **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).
+- **Still to measure:** the load test with its saturation point, contract tests against the deployed service, and the
+  index analysis for five queries (31 Oct–2 Nov). Screenshots and performance figures are added then.
