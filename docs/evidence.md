@@ -42,7 +42,7 @@ then close the pull request without merging and delete the branch.
 | Date | Run | Protection | Result | Link |
 | --- | --- | --- | --- | --- |
 | 2026-10-25 | Local PostgreSQL 16, approval SQL raced by three connections, 5 rounds | On | 5/5 rounds: one 201, two 409, 1 active hold | |
-| 2026-10-25 | Same, protection removed (all three layers) | Off | 5/5 rounds: three 201s, 3 active holds on one unit | |
-| | CI, `ConcurrentApprovalIT`, pull request on `main` | On | | _add run link_ |
-| | CI, `ConcurrentApprovalIT`, draft PR `evidence/no-protection` | Off | | _add run link and screenshot_ |
+| 2026-10-25 | Same, protection removed (all three layers) | Off | 5/5 rounds: three 201s, 3 active holds on one unit | https://github.com/Fisayomii/Bloodlink/actions/runs/40192167070/job/121165283070?pr=7 |
+| | CI, `ConcurrentApprovalIT`, pull request on `main` | On | | https://github.com/Fisayomii/Bloodlink/actions/runs/40191021808 |
+| | CI, `ConcurrentApprovalIT`, draft PR `evidence/no-protection` | Off | | https://github.com/Fisayomii/Bloodlink/actions/runs/40192167070/job/121165283070?pr=7 ![evidence.png](../../../Pictures/Screenshots/evidence.png)|
 | | Against the deployed service | On | | _after deployment_ |
