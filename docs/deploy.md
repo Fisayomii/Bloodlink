@@ -87,7 +87,7 @@ check the hook works.
 - [ ] Swagger at `https://<service>/`: **POST /sessions** as `staff@lagos-central.bank.demo` / `Demo-Password-1` gives 201
 - [ ] **GET /requests?state=PENDING** as that account shows the three hospitals' requests for the last O-negative unit
 - [ ] The Actions run for `main` shows **Deploy** green, without the "skipping deploy" notice
-- [ ] README: replace "_to add after first deploy_" with the live address
+- [x] README: live addresses added
 - [ ] Neon: reset the database password (Roles), update `DATABASE_PASSWORD` on Render, redeploy. The first password was
       shared in a chat.
 

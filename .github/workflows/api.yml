@@ -92,3 +92,17 @@ jobs:
             sleep 10
           done
           echo "::error::Service did not report healthy within 10 minutes"; exit 1
+
+  deployed-rule-check:
+    name: Rule check on the deployed service
+    needs: deploy
+    # Brief: the concurrency test runs against the deployed service. Three approvals for the last unit, sent together.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.API_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Three hospitals, one unit, exactly one reservation
+        run: node scripts/race-deployed.mjs "${{ vars.API_URL }}"
