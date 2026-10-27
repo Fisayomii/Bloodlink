@@ -61,3 +61,27 @@ ACTIVE reservations on one unit.
 Same test on `main`, green: one 201, two 409s, one active hold, five rounds.
 
 ![Build and test passing on main](evidence/main-green.png)
+
+## Every rule and the test that fails without it
+
+The brief: "Every business rule listed for your product has a test that fails when the rule is removed." Remove the
+protection named in the middle column and the test on the right goes red.
+
+| Business rule (brief) | Where it is protected | Test that fails without it |
+| --- | --- | --- |
+| A unit has one state at a time, from a fixed list; it needs a group, component, expiry and bank | `unit` CHECK constraints and NOT NULL, `001-core.sql` | `SchemaRulesIT.aUnitHasExactlyOneKnownState`, `aUnitCanOnlyBelongToABloodBank` |
+| A unit is reserved for at most one request at a time, even with three at once | Three layers in `RequestService.approve` (ADR-001) | `ConcurrentApprovalIT` (red run above), `SchemaRulesIT.aUnitCanBeHeldByOnlyOneActiveReservation` |
+| The losing hospital gets a clear refusal and its request stays usable | 409 `UNITS_NO_LONGER_AVAILABLE`, request stays PENDING | `ConcurrentApprovalIT`, `ApprovalIT.approvalIsAllOrNothing` |
+| An expired unit cannot be reserved or issued | `expiry_date >= current_date` in approval and issue | `ApprovalIT.anExpiredUnitIsNeverReserved`, `IssueIT.anExpiredUnitCanNeverBeIssued` |
+| A unit that expires while reserved reaches a defined final state; the request shows what happened | `reservation_status`, `blood_request_status` views | `SeedDataIT.twoUnitsExpiredWhileReservedAndEachReachedItsFinalState`, `IssueIT.anExpiredUnitCanNeverBeIssued` |
+| A lapsed hold returns the unit to stock and is never shown as held, even if no job runs | `unit_status` view; approval releases lapsed holds | `UnitsIT.aReservedUnitWhoseHoldLapsedShowsAsAvailableBeforeAnyJobHasRun`, `ApprovalIT.aUnitWhoseHoldLapsedCanBeReservedForAnotherRequestAndTheFirstRequestShowsLapsed` |
+| Only staff of the owning bank, or the administrator, change a unit's state | Role rules in `SecurityConfig`; bank checks in the services (another bank gets 404) | `RoleRulesIT`, `IssueIT.anotherBanksStaffCannotIssueAndAreToldItDoesNotExist`, `HoldReleaseIT.anotherBanksStaffCannotReleaseAndAreToldItDoesNotExist` |
+| Only the requesting hospital can cancel its own request | `SecurityConfig` (hospital staff only) and `RequestLifecycleService.cancel` | `RoleRulesIT.bankStaffCannotCancelAHospitalsRequest`, `theAdministratorCannotCancelAHospitalsRequest`, `CancellationIT.anotherHospitalCannotCancelAndIsToldItDoesNotExist` |
+| An issue recorded in error can be reversed; the unit returns to available only if it has not expired; both entries stay | `RequestLifecycleService.reverseIssue`; append-only `activity` trigger | `IssueIT.reversingAnIssueReturnsAnUnexpiredUnitToStockAndKeepsBothEntries`, `aReversedIssueDoesNotReturnAnExpiredUnitToStock`, `SchemaRulesIT.historyIsAppendOnly` |
+| Two people acting on one request at once leave it consistent | Request row lock in every lifecycle change | `IssueOrCancelRaceIT` |
+| Emergency and routine holds (design problem, ADR-002) | `RequestLifecycleService.releaseHoldFor` | `HoldReleaseIT` |
+| Requests carry a reference and the hospital, never a patient name | No column; unknown body fields refused | `RequestsIT.aPatientNameIsRefused`, `SchemaRulesIT.requestsGetAReadableReference` |
+| Submitting the same request twice records one | `blood_request_idempotency_key` + `ON CONFLICT DO NOTHING` | `RequestsIT.submittingTwiceWithTheSameKeyRecordsOneRequest`, `SchemaRulesIT.theSameIdempotencyKeyFromTheSameUserCreatesOnlyOneRequest` |
+| Availability figures are derived and say when they were computed | Computed per request with `computedAt` | `AvailabilityIT.figuresSayWhenTheyWereComputedAndHowMatchingWorks` |
+| A donation slot is never booked beyond its capacity, even with two donors at once | Next change (contract v0.2) | To come |
+

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.2.1
+  version: 0.2.2
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
@@ -755,8 +755,10 @@ paths:
         - the released request is APPROVED with urgency ROUTINE, at this bank;
         - the receiving request is PENDING with urgency EMERGENCY, at the same bank, for the same group,
           rhesus type and component;
-        - the emergency request is then approved exactly as `POST /requests/{id}/approval` would, using the
-          released units first. If it still cannot be met in full, nothing is released (all or nothing).
+        - free matching units could not already meet the emergency (otherwise approve it directly; a promise to
+          the routine hospital is never broken without need);
+        - the emergency request is then approved exactly as `POST /requests/{id}/approval` would. If it still cannot
+          be met in full, nothing is released (all or nothing).
 
         The routine request goes back to PENDING with a HOLD_RELEASED history entry naming the emergency
         request and the reason, so it is never silently lost. The response is the emergency request, now APPROVED.
@@ -792,8 +794,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: |
-            `HOLD_NOT_RELEASABLE`: the released request is not an APPROVED routine request, or the two requests do not
-            match (bank, group, rhesus, component, or the receiver is not an emergency).
+            `HOLD_NOT_RELEASABLE`: the released request is not an APPROVED routine request, the two requests do not
+            match (bank, group, rhesus, component, or the receiver is not an emergency), or free units could already
+            meet the emergency.
             `REQUEST_NOT_PENDING`: the emergency request is no longer pending.
             `UNITS_NO_LONGER_AVAILABLE`: even with the released units the emergency cannot be met; nothing changed.
           headers:

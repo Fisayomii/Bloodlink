@@ -61,6 +61,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/requests").hasRole("HOSPITAL_STAFF")
                 .requestMatchers(HttpMethod.POST, "/requests/*/approval", "/requests/*/declination")
                     .hasAnyRole("BANK_STAFF", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/requests/*/issue", "/requests/*/issue/reversal", "/requests/*/hold-release")
+                    .hasAnyRole("BANK_STAFF", "ADMIN")
+                // Brief: "Only the requesting hospital can cancel its own request". Not the bank, not the administrator.
+                .requestMatchers(HttpMethod.POST, "/requests/*/cancellation").hasRole("HOSPITAL_STAFF")
+                .requestMatchers(HttpMethod.GET, "/units/*").hasAnyRole("BANK_STAFF", "ADMIN")
                 // Everything else (organisations, availability, one request) needs any signed-in user.
                 .anyRequest().authenticated())
             // Reads "Authorization: Bearer <token>", checks its signature and expiry, and takes the role from it.

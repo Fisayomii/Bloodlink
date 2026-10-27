@@ -1,7 +1,7 @@
 # ADR-002: How long a hold lasts, and whether an emergency may take a held unit
 
-- **Status:** Accepted, 2026-10-25. Hold lengths are built. Releasing a hold for an emergency is designed here and is
-  planned for 27–30 Oct (contract v0.2).
+- **Status:** Accepted, 2026-10-25. Hold lengths built 25 Oct; releasing a hold for an emergency built 27 Oct
+  (`POST /requests/{id}/hold-release`, tested in `HoldReleaseIT`).
 - **Decided by:** Oluwafisayomi Aiyetogbon, Okechukwu Daniel. Interface impact agreed with Ufoma Onowho.
 - **This is the brief's design problem with no clean answer.**
 
@@ -45,8 +45,8 @@ Facts that shape the answer:
      decided. It is never lost or silently cancelled.
    - It is one transaction, protected by the same three layers as approval (ADR-001).
 
-   Until this is built, an emergency that finds every matching unit held gets the normal 409 refusal. The bank can then
-   ask the routine hospital directly.
+   - It is refused when free matching units could already meet the emergency: the bank approves the emergency
+     directly, and no promise is broken without need.
 
 ## Alternatives rejected
 

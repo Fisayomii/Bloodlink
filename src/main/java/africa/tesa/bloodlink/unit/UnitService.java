@@ -130,6 +130,33 @@ public class UnitService {
         return new UnitPage(items, page, size, total);
     }
 
+    /**
+     * GET /units/{unitId}: one unit and its full history. Bank staff see only their own bank's units; another bank's unit
+     * answers 404, so its existence is not revealed. The administrator sees any unit. Safe: nothing is changed.
+     */
+    public UnitDetailView detail(UUID id) {
+        CurrentUser user = CurrentUser.get();
+        UnitView unit = jdbc.sql("SELECT bank_id FROM unit WHERE id = ?").param(id).query(UUID.class).optional()
+            .filter(bank -> user.is(Role.ADMIN) || (user.is(Role.BANK_STAFF) && user.worksFor(bank)))
+            .map(bank -> find(id))
+            .orElseThrow(() -> ApiException.notFound("Unit not found."));
+        List<UnitDetailView.HistoryEntry> history = jdbc.sql("""
+                SELECT a.at, a.event, a.note,
+                       CASE WHEN u.id IS NULL THEN 'System'
+                            WHEN o.id IS NULL THEN u.display_name
+                            ELSE u.display_name || ', ' || o.name END AS actor
+                  FROM activity a
+                  LEFT JOIN app_user u ON u.id = a.actor_id
+                  LEFT JOIN organisation o ON o.id = u.organisation_id
+                 WHERE a.entity_type = 'UNIT' AND a.entity_id = :unit
+                 ORDER BY a.at, a.id""")
+            .param("unit", id)
+            .query((rs, row) -> new UnitDetailView.HistoryEntry(rs.getTimestamp("at").toInstant(), rs.getString("event"),
+                rs.getString("actor"), rs.getString("note")))
+            .list();
+        return UnitDetailView.of(unit, history);
+    }
+
     /** One unit with its effective state. */
     UnitView find(UUID id) {
         return jdbc.sql("""

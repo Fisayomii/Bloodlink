@@ -44,6 +44,16 @@ Swagger page (`/`) in a clean browser window. Password for every account: `Demo-
 - Wrong role: as the Yaba hospital account, **POST /units**: **403 FORBIDDEN**. `RoleRulesIT` proves it in CI.
 - Every response has an `X-Request-Id`; search the service log for it.
 
+## 5. Issue, reverse, cancel (contract v0.2)
+
+1. As `staff@lagos-central.bank.demo`, approve a pending request, then **POST /requests/{id}/issue**: **201 FULFILLED**.
+2. **POST /requests/{id}/issue/reversal** with a reason: **201 PENDING**. Open **GET /units/{unitId}** for its unit: the
+   history shows RESERVED, ISSUED, ISSUE_REVERSED, and the unit is AVAILABLE again (it had not expired).
+3. As the hospital that made a request, **POST /requests/{id}/cancellation** with a reason: **201 CANCELLED**, and its
+   unit is straight back in availability. As the bank or another hospital, the same call is refused (403 / 404).
+4. ADR-002: with a routine request holding the only unit and an emergency waiting, **POST /requests/{routineId}/hold-release**
+   with `forRequestId` and a reason: the emergency is APPROVED and the routine request is PENDING with a HOLD_RELEASED entry.
+
 ## Likely questions
 
 See the "BloodLink Trade-offs & Defence Prep" document.
