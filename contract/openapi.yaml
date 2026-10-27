@@ -1,13 +1,15 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
     and the interface does not call one. Every change is logged in docs/decisions.md.
 
-    **Scope of v0:** the Monday journey (record units, search availability, request, approve or decline).
+    **Scope:** v0.1 the Monday journey (record units, search availability, request, approve or decline).
+    v0.2 adds issue and its reversal, cancellation by the hospital, releasing a routine hold for an emergency
+    (ADR-002), a unit's history, donation slots and bookings, and the dashboard.
 
     **Conventions**
     - Every operation states `x-safety`: `safe` (no change), `idempotent` (repeating has the same effect)
@@ -32,6 +34,8 @@ tags:
   - name: Units
   - name: Availability
   - name: Requests
+  - name: Donations
+  - name: Dashboard
   - name: Operations
 security:
   - bearerAuth: []
@@ -530,6 +534,577 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /units/{unitId}:
+    parameters:
+      - $ref: '#/components/parameters/UnitIdPath'
+    get:
+      tags: [Units]
+      operationId: getUnit
+      summary: One unit with its full history
+      description: |
+        Staff of the bank that holds the unit, or the administrator. Staff of another bank receive 404, so the
+        existence of other banks' units is not revealed. Hospital staff and donors receive 403.
+        `state` is computed at read time, like the list. The history is oldest first and never edited: an issue
+        and its reversal both stay visible.
+      x-safety: safe
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: The unit and its history
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /requests/{requestId}/issue:
+    parameters:
+      - $ref: '#/components/parameters/RequestIdPath'
+    post:
+      tags: [Requests]
+      operationId: issueRequest
+      summary: Record the reserved units as issued (handed to the hospital)
+      description: |
+        Staff of the addressed bank, or the administrator. Allowed only while the request is APPROVED: every hold
+        still running and no reserved unit past its expiry date. In one transaction every reserved unit becomes
+        ISSUED, every reservation ISSUED, and the request FULFILLED. All or nothing.
+
+        An expired unit can never be issued. A request whose hold has lapsed, or whose unit expired while
+        reserved, is no longer APPROVED, so the call is refused with 409 `REQUEST_NOT_APPROVED`.
+
+        Not idempotent: issuing a request that is already FULFILLED returns 409 `REQUEST_NOT_APPROVED`.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '201':
+          description: Issued; the request is FULFILLED and its history shows who issued and when
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BloodRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`REQUEST_NOT_APPROVED`: the request is not APPROVED now (pending, already fulfilled, its hold lapsed, or a reserved unit expired).'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: REQUEST_NOT_APPROVED
+                message: This request cannot be issued because its hold lapsed at 11:06. Approve it again if units are free.
+                requestId: 7f9c2b1e-4c1a-4f7e-9d0b-2a6c8e1f3b55
+                details: []
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /requests/{requestId}/issue/reversal:
+    parameters:
+      - $ref: '#/components/parameters/RequestIdPath'
+    post:
+      tags: [Requests]
+      operationId: reverseIssue
+      summary: Reverse an issue that was recorded in error
+      description: |
+        Staff of the addressed bank, or the administrator. Allowed only when the request is FULFILLED.
+        In one transaction:
+        - each issued unit returns to AVAILABLE **only if it has not expired**; a unit past its expiry date
+          becomes EXPIRED instead;
+        - each reservation becomes REVERSED;
+        - the request goes back to PENDING, so it is not lost and the bank can approve it again.
+
+        Nothing is deleted: the unit's and the request's history keep both the ISSUED entry and the
+        ISSUE_REVERSED entry, with the reason. Not idempotent: a second reversal returns 409.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueReversal'
+            example:
+              reason: Issued to the wrong request; the units never left the bank.
+      responses:
+        '201':
+          description: Reversed; the request is PENDING again and its history shows both entries
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BloodRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`REQUEST_NOT_FULFILLED`: there is no issue to reverse (the request is not FULFILLED).'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /requests/{requestId}/cancellation:
+    parameters:
+      - $ref: '#/components/parameters/RequestIdPath'
+    post:
+      tags: [Requests]
+      operationId: cancelRequest
+      summary: The requesting hospital withdraws its own request
+      description: |
+        **Only staff of the hospital that made the request.** Other hospitals receive 404; bank staff, donors and
+        the administrator receive 403. Allowed while the request is PENDING or APPROVED. Cancelling an APPROVED
+        request releases its holds in the same transaction: each reservation becomes RELEASED and each unit
+        returns to AVAILABLE. The request becomes CANCELLED. Not idempotent: a second cancellation returns 409.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Cancellation'
+            example:
+              reason: Patient transferred to another hospital.
+      responses:
+        '201':
+          description: Cancelled; any held units are back in stock
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BloodRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`REQUEST_CLOSED`: the request is already fulfilled, declined, cancelled, lapsed or ended by an expired unit.'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /requests/{requestId}/hold-release:
+    parameters:
+      - $ref: '#/components/parameters/RequestIdPath'
+    post:
+      tags: [Requests]
+      operationId: releaseHoldForEmergency
+      summary: Release a routine request's hold so an emergency request can have its units (ADR-002)
+      description: |
+        Staff of the bank holding the units, or the administrator. `requestId` is the **routine** request whose
+        hold is released; `forRequestId` is the **emergency** request that receives the units. Never automatic:
+        it is a recorded decision with a reason.
+
+        Rules, all checked in one transaction:
+        - the released request is APPROVED with urgency ROUTINE, at this bank;
+        - the receiving request is PENDING with urgency EMERGENCY, at the same bank, for the same group,
+          rhesus type and component;
+        - the emergency request is then approved exactly as `POST /requests/{id}/approval` would, using the
+          released units first. If it still cannot be met in full, nothing is released (all or nothing).
+
+        The routine request goes back to PENDING with a HOLD_RELEASED history entry naming the emergency
+        request and the reason, so it is never silently lost. The response is the emergency request, now APPROVED.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldRelease'
+            example:
+              forRequestId: 5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e
+              reason: Emergency at Ikorodu; Yaba confirmed by phone that its courier has not left.
+      responses:
+        '201':
+          description: Released; the emergency request is APPROVED and holds the units
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BloodRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            `HOLD_NOT_RELEASABLE`: the released request is not an APPROVED routine request, or the two requests do not
+            match (bank, group, rhesus, component, or the receiver is not an emergency).
+            `REQUEST_NOT_PENDING`: the emergency request is no longer pending.
+            `UNITS_NO_LONGER_AVAILABLE`: even with the released units the emergency cannot be met; nothing changed.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /donation-slots:
+    get:
+      tags: [Donations]
+      operationId: listDonationSlots
+      summary: Donation slots at blood banks, with places left
+      description: |
+        Any signed-in user. Defaults to the next 14 days (Lagos dates). `placesLeft` is derived from the bookings
+        at the moment of the request and labelled with `computedAt`.
+      x-safety: safe
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/BankIdQuery'
+        - name: from
+          in: query
+          required: false
+          description: First day to include. Default today.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Last day to include. Default 14 days after `from`. At most 31 days after `from`.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Slots ordered by start time; empty `items` when none match
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationSlotList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Donations]
+      operationId: createDonationSlot
+      summary: Open a donation slot at the signed-in staff member's bank
+      description: Bank staff only. The bank comes from the token. Not safe to repeat; each call opens a new slot.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationSlotCreate'
+            example:
+              startsAt: '2026-10-29T09:00:00+01:00'
+              endsAt: '2026-10-29T10:00:00+01:00'
+              capacity: 4
+      responses:
+        '201':
+          description: Slot opened
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationSlot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /donation-slots/{slotId}/bookings:
+    parameters:
+      - $ref: '#/components/parameters/SlotIdPath'
+    post:
+      tags: [Donations]
+      operationId: bookDonationSlot
+      summary: A donor books a place in a slot
+      description: |
+        Donors only; the donor comes from the token. A slot never has more active bookings (BOOKED or ATTENDED)
+        than its capacity, **including when two donors book the last place in the same second**: the database
+        enforces it, one booking succeeds and the other receives 409 `SLOT_FULL`.
+        One active booking per donor per slot: booking the same slot again returns 409 `ALREADY_BOOKED`, so a
+        double tap records one booking. Slots that have started cannot be booked (409 `SLOT_CLOSED`).
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '201':
+          description: Booked
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`SLOT_FULL`, `ALREADY_BOOKED` or `SLOT_CLOSED`.'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: SLOT_FULL
+                message: This slot has no places left. Please choose another time.
+                requestId: 7f9c2b1e-4c1a-4f7e-9d0b-2a6c8e1f3b55
+                details: []
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /bookings:
+    get:
+      tags: [Donations]
+      operationId: listBookings
+      summary: Donation bookings visible to the caller
+      description: |
+        Donors see their own bookings. Bank staff see bookings for their bank's slots. The administrator sees all.
+        Hospital staff receive 403.
+      x-safety: safe
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BookingStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: A page of bookings, soonest slot first
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /bookings/{bookingId}/cancellation:
+    parameters:
+      - $ref: '#/components/parameters/BookingIdPath'
+    post:
+      tags: [Donations]
+      operationId: cancelBooking
+      summary: A donor cancels their own booking, freeing the place
+      description: |
+        Only the donor who made the booking; anyone else receives 404. Allowed while the booking is BOOKED and
+        the slot has not started. Not idempotent: a second cancellation returns 409 `BOOKING_NOT_ACTIVE`.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '201':
+          description: Cancelled; the place is free again
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`BOOKING_NOT_ACTIVE` (already cancelled or recorded) or `SLOT_CLOSED` (the slot has started).'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /bookings/{bookingId}/attendance:
+    parameters:
+      - $ref: '#/components/parameters/BookingIdPath'
+    post:
+      tags: [Donations]
+      operationId: recordAttendance
+      summary: Bank staff record that the donor attended or did not show
+      description: |
+        Staff of the bank that runs the slot, or the administrator; staff of another bank receive 404.
+        Allowed once the slot has started, and only for a BOOKED booking. Not idempotent: recording a second
+        outcome returns 409 `BOOKING_NOT_ACTIVE`.
+      x-safety: neither
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Attendance'
+            example:
+              outcome: ATTENDED
+      responses:
+        '201':
+          description: Recorded
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`BOOKING_NOT_ACTIVE` (not BOOKED) or `SLOT_NOT_STARTED` (too early to record).'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Stock and activity summary for a bank, derived from the records
+      description: |
+        Bank staff see their own bank; `bankId` is ignored for them. The administrator sees every bank, or one
+        bank with `bankId`. Hospital staff and donors receive 403.
+        Every figure is computed from the records at the moment of the request (nothing is stored) and the
+        response carries `computedAt`. The windows used are stated in the response so the screen can label them.
+      x-safety: safe
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/BankIdQuery'
+      responses:
+        '200':
+          description: The dashboard
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /actuator/health:
     get:
       tags: [Operations]
@@ -585,6 +1160,27 @@ components:
       in: path
       required: true
       description: Identifier of the blood request (not the X-Request-Id header).
+      schema:
+        type: string
+        format: uuid
+    UnitIdPath:
+      name: unitId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SlotIdPath:
+      name: slotId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BookingIdPath:
+      name: bookingId
+      in: path
+      required: true
       schema:
         type: string
         format: uuid
@@ -759,6 +1355,15 @@ components:
             - DUPLICATE_UNIT_REFERENCE
             - UNITS_NO_LONGER_AVAILABLE
             - REQUEST_NOT_PENDING
+            - REQUEST_NOT_APPROVED
+            - REQUEST_NOT_FULFILLED
+            - REQUEST_CLOSED
+            - HOLD_NOT_RELEASABLE
+            - SLOT_FULL
+            - SLOT_CLOSED
+            - SLOT_NOT_STARTED
+            - ALREADY_BOOKED
+            - BOOKING_NOT_ACTIVE
             - INTERNAL_ERROR
         message:
           type: string
@@ -821,14 +1426,18 @@ components:
       description: |
         PENDING: waiting for the bank. APPROVED: units reserved and on hold. DECLINED: refused with a reason.
         CANCELLED: withdrawn by the hospital. FULFILLED: all reserved units issued.
-        LAPSED: the hold passed before issue; units returned to stock.
+        LAPSED: the hold passed before issue; units returned to stock. A reversed issue, or a routine hold
+        released for an emergency, puts the request back to PENDING.
         UNIT_EXPIRED: a reserved unit passed its expiry date before issue.
       enum: [PENDING, APPROVED, DECLINED, CANCELLED, FULFILLED, LAPSED, UNIT_EXPIRED]
 
     ReservationStatus:
       type: string
-      description: ACTIVE means the hold has not passed. LAPSED is reported as soon as `holdExpiresAt` passes.
-      enum: [ACTIVE, LAPSED, ISSUED, UNIT_EXPIRED, RELEASED]
+      description: |
+        ACTIVE means the hold has not passed. LAPSED is reported as soon as `holdExpiresAt` passes.
+        ISSUED: the unit was handed over. REVERSED: that issue was reversed. RELEASED: the hold was ended early
+        (the hospital cancelled, or bank staff released it for an emergency). UNIT_EXPIRED: the unit expired while held.
+      enum: [ACTIVE, LAPSED, ISSUED, REVERSED, UNIT_EXPIRED, RELEASED]
 
     SessionCreate:
       type: object
@@ -1146,7 +1755,9 @@ components:
           format: date-time
         event:
           type: string
-          description: What happened, for example CREATED, APPROVED, DECLINED, HOLD_LAPSED.
+          description: |
+            What happened, for example RECORDED, CREATED, APPROVED, DECLINED, RESERVED, ISSUED, ISSUE_REVERSED,
+            CANCELLED, HOLD_RELEASED, HOLD_LAPSED, EXPIRED, UNIT_EXPIRED.
           maxLength: 40
         actor:
           type: string
@@ -1272,3 +1883,337 @@ components:
         status:
           type: string
           enum: [UP, DOWN]
+
+    UnitDetail:
+      type: object
+      additionalProperties: false
+      description: A unit with its history, oldest first. Entries are never removed.
+      required: [id, reference, bloodGroup, rhesus, component, collectionDate, expiryDate, state, bank, recordedAt, history]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        bloodGroup:
+          $ref: '#/components/schemas/BloodGroup'
+        rhesus:
+          $ref: '#/components/schemas/Rhesus'
+        component:
+          $ref: '#/components/schemas/Component'
+        collectionDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        state:
+          $ref: '#/components/schemas/UnitState'
+        bank:
+          $ref: '#/components/schemas/Organisation'
+        recordedAt:
+          type: string
+          format: date-time
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryEntry'
+
+    IssueReversal:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+
+    Cancellation:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Why the hospital no longer needs the units. Never a patient's name.
+
+    HoldRelease:
+      type: object
+      additionalProperties: false
+      required: [forRequestId, reason]
+      properties:
+        forRequestId:
+          type: string
+          format: uuid
+          description: The PENDING emergency request that receives the released units.
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+
+    DonationSlotCreate:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt, capacity]
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          description: In the future.
+        endsAt:
+          type: string
+          format: date-time
+          description: After startsAt, at most 8 hours later.
+        capacity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 50
+          description: Number of donors who can book this slot.
+
+    DonationSlot:
+      type: object
+      additionalProperties: false
+      required: [id, bank, startsAt, endsAt, capacity, booked, placesLeft]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bank:
+          $ref: '#/components/schemas/Organisation'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+          format: int32
+        booked:
+          type: integer
+          format: int32
+          description: Active bookings (BOOKED or ATTENDED).
+        placesLeft:
+          type: integer
+          format: int32
+          minimum: 0
+      example:
+        id: 2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f6a
+        bank:
+          id: 0d1f6a3e-2b4c-4e5f-8a9b-1c2d3e4f5a6b
+          name: Lagos Central Blood Bank (demo)
+          type: BLOOD_BANK
+          area: Ikeja
+        startsAt: '2026-10-29T09:00:00+01:00'
+        endsAt: '2026-10-29T10:00:00+01:00'
+        capacity: 4
+        booked: 3
+        placesLeft: 1
+
+    DonationSlotList:
+      type: object
+      additionalProperties: false
+      required: [items, computedAt]
+      properties:
+        computedAt:
+          type: string
+          format: date-time
+          description: When `placesLeft` was derived from the bookings. Show it beside the figures.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DonationSlot'
+
+    BookingStatus:
+      type: string
+      description: BOOKED until the slot; then ATTENDED or NO_SHOW as recorded by staff. CANCELLED by the donor.
+      enum: [BOOKED, CANCELLED, ATTENDED, NO_SHOW]
+
+    Booking:
+      type: object
+      additionalProperties: false
+      required: [id, slot, donor, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slot:
+          $ref: '#/components/schemas/DonationSlot'
+        donor:
+          $ref: '#/components/schemas/DonorSummary'
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    DonorSummary:
+      type: object
+      additionalProperties: false
+      required: [id, displayName]
+      description: Display name only; no contact or health details.
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          maxLength: 120
+
+    BookingPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Booking'
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalItems:
+          type: integer
+          format: int64
+
+    Attendance:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [ATTENDED, NO_SHOW]
+
+    Dashboard:
+      type: object
+      additionalProperties: false
+      required: [computedAt, bank, lowStockThreshold, holdsEndingWithinMinutes, expiringWithinDays,
+                 availableByGroup, lowGroups, openRequests, holdsEndingSoon, unitsExpiringSoon, recentActivity]
+      properties:
+        computedAt:
+          type: string
+          format: date-time
+          description: When every figure on this dashboard was derived from the records.
+        bank:
+          description: The bank summarised; null when the administrator views every bank.
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Organisation'
+        lowStockThreshold:
+          type: integer
+          format: int32
+          description: A group is "running low" when fewer than this many units are available.
+        holdsEndingWithinMinutes:
+          type: integer
+          format: int32
+          description: Window used for `holdsEndingSoon`.
+        expiringWithinDays:
+          type: integer
+          format: int32
+          description: Window used for `unitsExpiringSoon`.
+        availableByGroup:
+          type: array
+          description: All eight groups, including those with zero, counting every component.
+          items:
+            $ref: '#/components/schemas/GroupCount'
+        lowGroups:
+          type: array
+          description: Groups with fewer than `lowStockThreshold` available units.
+          items:
+            $ref: '#/components/schemas/GroupCount'
+        openRequests:
+          $ref: '#/components/schemas/OpenRequestCounts'
+        holdsEndingSoon:
+          type: array
+          description: Active holds ending within the window, soonest first.
+          items:
+            $ref: '#/components/schemas/HoldEndingSoon'
+        unitsExpiringSoon:
+          type: array
+          description: Available or reserved units whose expiry date falls within the window, soonest first.
+          items:
+            $ref: '#/components/schemas/Unit'
+        recentActivity:
+          type: array
+          description: The 20 most recent history entries, newest first.
+          items:
+            $ref: '#/components/schemas/ActivityEntry'
+
+    GroupCount:
+      type: object
+      additionalProperties: false
+      required: [bloodGroup, rhesus, availableUnits]
+      properties:
+        bloodGroup:
+          $ref: '#/components/schemas/BloodGroup'
+        rhesus:
+          $ref: '#/components/schemas/Rhesus'
+        availableUnits:
+          type: integer
+          format: int32
+          minimum: 0
+
+    OpenRequestCounts:
+      type: object
+      additionalProperties: false
+      required: [pending, approved]
+      properties:
+        pending:
+          type: integer
+          format: int32
+        approved:
+          type: integer
+          format: int32
+          description: Approved and still holding units.
+
+    HoldEndingSoon:
+      type: object
+      additionalProperties: false
+      required: [requestId, requestReference, hospital, unit, holdExpiresAt]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        requestReference:
+          type: string
+        hospital:
+          $ref: '#/components/schemas/Organisation'
+        unit:
+          $ref: '#/components/schemas/UnitSummary'
+        holdExpiresAt:
+          type: string
+          format: date-time
+
+    ActivityEntry:
+      type: object
+      additionalProperties: false
+      required: [at, event, subject, reference, actor]
+      properties:
+        at:
+          type: string
+          format: date-time
+        event:
+          type: string
+          maxLength: 40
+        subject:
+          type: string
+          enum: [UNIT, REQUEST, BOOKING]
+        reference:
+          type: string
+          description: The unit reference, request reference or booking's slot time, for display.
+        actor:
+          type: string
+          maxLength: 200
+        note:
+          type: string
+          nullable: true
+          maxLength: 500
