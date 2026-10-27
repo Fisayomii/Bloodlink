@@ -73,7 +73,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
   endpoint:
     health:
       show-details: never
+  info:
+    # Publishes the info.* values below at /actuator/info.
+    env:
+      enabled: true
+
+# GET /actuator/info: which commit is running. Render sets RENDER_GIT_COMMIT for every deploy; the pipeline waits until the
+# live service reports the commit it just deployed, so the checks after a deploy test the new version, not the old one.
+info:
+  commit: ${RENDER_GIT_COMMIT:local}

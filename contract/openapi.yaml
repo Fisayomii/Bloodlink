@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.2.0
+  version: 0.2.1
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
@@ -1105,6 +1105,26 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /actuator/info:
+    get:
+      tags: [Operations]
+      operationId: getInfo
+      summary: Which version of the service is running
+      description: |
+        The git commit the running service was built from (`local` when not deployed). The pipeline polls this after a
+        deploy, so the checks that follow run against the new version rather than the one it replaced.
+      x-safety: safe
+      security: []
+      responses:
+        '200':
+          description: The running version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+              example:
+                commit: 3de28e9a1b2c4d5e6f708192a3b4c5d6e7f80912
+
   /actuator/health:
     get:
       tags: [Operations]
@@ -1875,6 +1895,14 @@ components:
         totalItems:
           type: integer
           format: int64
+
+    Info:
+      type: object
+      required: [commit]
+      properties:
+        commit:
+          type: string
+          description: Full git commit SHA, or `local`.
 
     Health:
       type: object
