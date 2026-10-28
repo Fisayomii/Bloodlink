@@ -1115,6 +1115,8 @@ paths:
         deploy, so the checks that follow run against the new version rather than the one it replaced.
       x-safety: safe
       security: []
+      # The service answers with Spring's actuator media type unless the caller asks for application/json; the body is
+      # the same JSON either way.
       responses:
         '200':
           description: The running version
@@ -1124,6 +1126,9 @@ paths:
                 $ref: '#/components/schemas/Info'
               example:
                 commit: 3de28e9a1b2c4d5e6f708192a3b4c5d6e7f80912
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: '#/components/schemas/Info'
 
   /actuator/health:
     get:
@@ -1132,6 +1137,8 @@ paths:
       summary: Liveness and database reachability, for the host and for waking the service before a demo
       x-safety: safe
       security: []
+      # The service answers with Spring's actuator media type unless the caller asks for application/json; the body is
+      # the same JSON either way.
       responses:
         '200':
           description: Service and database are up
@@ -1141,6 +1148,9 @@ paths:
                 $ref: '#/components/schemas/Health'
               example:
                 status: UP
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: '#/components/schemas/Health'
         '503':
           description: Service is up but a dependency (the database) is not
           content:
@@ -1149,6 +1159,9 @@ paths:
                 $ref: '#/components/schemas/Health'
               example:
                 status: DOWN
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: '#/components/schemas/Health'
 
 components:
   securitySchemes:

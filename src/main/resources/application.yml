@@ -28,6 +28,10 @@ spring:
     # "demo" loads the demonstration organisations and accounts (002-demo-accounts.sql). Set LIQUIBASE_CONTEXTS=none
     # to deploy without them (an empty value would run every changeset, demo included).
     contexts: ${LIQUIBASE_CONTEXTS:demo}
+  servlet:
+    multipart:
+      # No uploads anywhere in the contract. Off, so a multipart Content-Type is never parsed (a malformed one was a 500).
+      enabled: false
   jackson:
     deserialization:
       # Refuse request bodies with fields the contract does not list (for example a patient name).

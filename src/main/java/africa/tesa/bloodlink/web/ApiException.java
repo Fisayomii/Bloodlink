@@ -40,6 +40,12 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.CONFLICT, code, message);
     }
 
+    /** 400: a query or path value the contract does not allow (contract: BadRequest). */
+    public static ApiException malformed(String field, String issue) {
+        return new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "A value in the address is not valid.",
+            List.of(new ApiError.FieldIssue(field, issue)));
+    }
+
     public static ApiException validation(String message, List<ApiError.FieldIssue> details) {
         return new ApiException(UNPROCESSABLE, ErrorCode.VALIDATION_FAILED, message, details);
     }
