@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>POST /units: bank staff record one received unit at their own bank. Neither safe nor idempotent, but a repeated
  *       reference at the same bank is refused (409), so a retry after a lost response is detected, not duplicated.</li>
  *   <li>GET /units: bank staff see their own bank's units; the administrator sees all and may filter by bank. Safe.</li>
+ *   <li>GET /units/{unitId}: one unit with its full history (both an issue and its reversal stay visible). Safe.</li>
  * </ul>
  * Who may call each one is set in SecurityConfig; which bank is decided here from the token, never from the request.
  */
@@ -43,6 +45,11 @@ public class UnitController {
     ResponseEntity<UnitView> record(@Valid @RequestBody UnitCreate body) {
         UnitView unit = units.record(body);
         return ResponseEntity.created(URI.create("/units/" + unit.id())).body(unit);
+    }
+
+    @GetMapping("/units/{unitId}")
+    UnitDetailView detail(@PathVariable UUID unitId) {
+        return units.detail(unitId);
     }
 
     @GetMapping("/units")

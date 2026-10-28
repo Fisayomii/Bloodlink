@@ -19,7 +19,7 @@ ACCOUNTS=("$@")
 
 # Paths in the contract that the service does not implement yet. They answer 404, which the contract does not list for
 # them, so they are left out until built. Remove each one in the change that builds it (decisions file, 2026-10-27).
-NOT_YET_BUILT='^/(units/\{unitId\}|requests/\{requestId\}/(issue|issue/reversal|cancellation|hold-release)|donation-slots|bookings|dashboard)'
+NOT_YET_BUILT='^/(donation-slots|bookings|dashboard)'
 
 # Time budget per account, in seconds. Fuzzing keeps generating requests until it is spent, and a request that gets
 # no answer is reported as a failure instead of hanging the pipeline.

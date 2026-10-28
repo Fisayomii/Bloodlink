@@ -308,7 +308,7 @@ public class RequestService {
     }
 
     /** Adds an entry to the request's history. A null actor means the system did it. */
-    private void history(UUID requestId, String event, UUID actor, String note) {
+    void history(UUID requestId, String event, UUID actor, String note) {
         jdbc.sql("""
                 INSERT INTO activity (entity_type, entity_id, event, actor_id, note)
                 VALUES ('REQUEST', :request, :event, :actor, :note)""")

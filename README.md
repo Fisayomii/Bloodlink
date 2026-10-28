@@ -143,6 +143,19 @@ Cases worth showing:
 | Lapsed holds, declined requests with reasons, issued units, cancelled requests | `GET /requests` as the administrator |
 | AB-negative running low (one unit per bank) | `GET /availability?bloodGroup=AB&rhesus=NEGATIVE` |
 
+## Issue, reversal, cancellation (contract v0.2)
+
+| Who | Call | What happens |
+| --- | --- | --- |
+| Bank staff | `POST /requests/{id}/issue` | Only while APPROVED (holds running, no unit expired). Units ISSUED, request FULFILLED |
+| Bank staff | `POST /requests/{id}/issue/reversal` with a reason | Units back to AVAILABLE only if not expired (otherwise EXPIRED); request PENDING again; both history entries kept |
+| The requesting hospital only | `POST /requests/{id}/cancellation` with a reason | Request CANCELLED; any held units straight back in stock |
+| Bank staff | `POST /requests/{id}/hold-release` with `forRequestId` and a reason | ADR-002: a routine hold released for a matching emergency, in one transaction with the emergency's approval |
+| Bank staff, administrator | `GET /units/{id}` | The unit and its full history |
+
+Try it in Swagger: as `staff@lagos-central.bank.demo`, approve one of the pending O-negative requests, then issue it, then
+reverse the issue and open `GET /units/{id}` for the unit: both ISSUED and ISSUE_REVERSED are there.
+
 ## The rule this product depends on
 
 A unit is reserved for at most one request at a time, even when three hospitals ask for the last unit in the same second.
@@ -158,15 +171,14 @@ are computed on every read (ADR-003), so a lapsed hold is never shown as held an
 - No real blood bank, hospital, donor or patient is involved; every name is fictional and marked "(demo)".
 - **The one seeded APPROVED request holds its two units for 10 days**, so the RESERVED state stays visible during the
   assessment. Real holds last 1 to 4 hours depending on urgency (`HOLD_*` settings).
-- Seeded FULFILLED and CANCELLED requests were written directly as data; issuing units and cancelling requests through the
-  service arrive in a later version.
+- Seeded FULFILLED and CANCELLED requests were written directly as data. Issuing, reversing an issue and cancelling through
+  the service work for any request created through the service (see "Issue, reversal, cancellation" below).
 - No SMS, push, payments or courier arrangements.
 
 ## Known limitations (26 Oct checkpoint)
 
-- **Not built yet:** issuing units and reversing an issue, the hold and expiry sweep jobs (reads are already correct
-  without them), donation slots and bookings, the dashboard, a hospital cancelling its own request, and bank staff
-  releasing a routine hold for an emergency (ADR-002). Planned for 27–30 Oct.
+- **Not built yet:** the hold and expiry sweep jobs (reads are already correct without them), donation slots and
+  bookings, and the dashboard. In contract v0.2; planned for 28–30 Oct. Until then those paths answer 404.
 - **Partial approval** is not allowed: approval reserves every unit asked for, or nothing. Asked the client.
 - **Free hosting sleeps:** the first request after 15 idle minutes waits for the service to wake (measured 28 s).
 - **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).

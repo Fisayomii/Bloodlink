@@ -68,6 +68,37 @@ class RoleRulesIT extends AbstractPostgresIT {
     }
 
     @Test
+    void hospitalStaffCannotIssueUnits() throws Exception {
+        assertRefused(postJson(A_REQUEST + "/issue", "", signIn(YABA_HOSPITAL_STAFF)));
+    }
+
+    @Test
+    void hospitalStaffCannotReverseAnIssue() throws Exception {
+        assertRefused(postJson(A_REQUEST + "/issue/reversal", "{\"reason\":\"Mine\"}", signIn(YABA_HOSPITAL_STAFF)));
+    }
+
+    @Test
+    void hospitalStaffCannotReleaseAnotherHospitalsHold() throws Exception {
+        assertRefused(postJson(A_REQUEST + "/hold-release", "{}", signIn(VI_HOSPITAL_STAFF)));
+    }
+
+    @Test
+    void bankStaffCannotCancelAHospitalsRequest() throws Exception {
+        assertRefused(postJson(A_REQUEST + "/cancellation", "{\"reason\":\"Not needed\"}", signIn(LAGOS_BANK_STAFF)));
+    }
+
+    @Test
+    void theAdministratorCannotCancelAHospitalsRequest() throws Exception {
+        // Brief: only the requesting hospital can cancel its own request.
+        assertRefused(postJson(A_REQUEST + "/cancellation", "{\"reason\":\"Not needed\"}", signIn(ADMIN)));
+    }
+
+    @Test
+    void hospitalStaffCannotReadAUnitsHistory() throws Exception {
+        assertRefused(get("/units/3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f", signIn(YABA_HOSPITAL_STAFF)));
+    }
+
+    @Test
     void anySignedInRoleCanListOrganisations() throws Exception {
         for (String account : new String[] {ADMIN, LAGOS_BANK_STAFF, VI_HOSPITAL_STAFF, DONOR}) {
             assertThat(get("/organisations", signIn(account)).statusCode()).as(account).isEqualTo(200);
