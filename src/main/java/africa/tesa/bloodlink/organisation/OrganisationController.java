@@ -28,7 +28,7 @@ public class OrganisationController {
     OrganisationList list(@RequestParam(required = false) OrganisationType type,
                           @RequestParam(required = false) String area) {
         if (area != null && area.length() > MAX_AREA_LENGTH) {
-            throw ApiException.validation("area", "At most " + MAX_AREA_LENGTH + " characters.");
+            throw ApiException.malformed("area", "At most " + MAX_AREA_LENGTH + " characters.");
         }
         // Each filter applies only when given: "? IS NULL OR ..." keeps one query for every combination.
         List<OrganisationView> items = jdbc.sql("""

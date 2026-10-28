@@ -1,5 +1,6 @@
 package africa.tesa.bloodlink.web;
 
+import java.sql.SQLException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -116,12 +118,58 @@ public class GlobalExceptionHandler {
         return respond(HttpStatus.METHOD_NOT_ALLOWED, ErrorCode.MALFORMED_REQUEST, "This method is not allowed here.");
     }
 
+    /** A multipart Content-Type (for example one without a boundary). The API takes no uploads; every body is JSON. */
+    @ExceptionHandler(MultipartException.class)
+    ResponseEntity<ApiError> onMultipart(MultipartException ex) {
+        return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "Send the body as application/json.");
+    }
+
     /** Anything unexpected. The details go to the log (with the request id), never to the caller. */
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiError> onUnexpected(Exception ex) {
+        if (isUnreadableQuery(ex)) {
+            return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "The address could not be read.");
+        }
+        if (isUnstorableText(ex)) {
+            return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST,
+                "A value contains a character that is not allowed.");
+        }
         LOG.error("Unhandled error", ex);
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
             "Something went wrong on our side. Please try again.");
+    }
+
+    /**
+     * The web server could not parse the query string, for example a parameter with no name ("?=x"). Tomcat reports this
+     * as an InvalidParameterException when the parameters are first read; matched by name, like the Jackson case above.
+     */
+    private static boolean isUnreadableQuery(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if ("InvalidParameterException".equals(cause.getClass().getSimpleName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Text PostgreSQL cannot take at all, whatever the query: the null character (sent as %00 in an address, or escaped in
+     * JSON). The driver refuses it before sending ("Zero bytes may not occur in string parameters", state 22023), and the
+     * server refuses it with 22021 or 22P05. Either way the caller sent the character; the service did not fail, so it
+     * is a 400 wherever the text arrives: query, path or body.
+     */
+    private static boolean isUnstorableText(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql) {
+                String state = sql.getSQLState();
+                String message = String.valueOf(sql.getMessage());
+                if ("22021".equals(state) || "22P05".equals(state)
+                        || ("22023".equals(state) && message.contains("Zero bytes"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static ResponseEntity<ApiError> respond(HttpStatus status, ErrorCode code, String message) {

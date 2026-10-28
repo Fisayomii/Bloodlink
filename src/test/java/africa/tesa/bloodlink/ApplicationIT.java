@@ -24,6 +24,15 @@ class ApplicationIT extends AbstractPostgresIT {
     }
 
     @Test
+    void infoSaysWhichCommitIsRunningWithoutAToken() throws Exception {
+        HttpResponse<String> response = get("/actuator/info");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        // RENDER_GIT_COMMIT is not set in tests, so the service reports "local". The pipeline waits on this value.
+        assertThat((String) json(response.body(), "$.commit")).isEqualTo("local");
+    }
+
+    @Test
     void protectedPathWithoutTokenIsRefusedWith401InTheContractErrorShape() throws Exception {
         HttpResponse<String> response = get("/units");
 

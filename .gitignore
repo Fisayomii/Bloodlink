@@ -6,3 +6,7 @@ target/
 .DS_Store
 .env
 *.log
+
+# Contract test output (scripts/contract-test.sh)
+contract-test-report/
+.schemathesis/

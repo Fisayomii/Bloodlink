@@ -28,6 +28,10 @@ spring:
     # "demo" loads the demonstration organisations and accounts (002-demo-accounts.sql). Set LIQUIBASE_CONTEXTS=none
     # to deploy without them (an empty value would run every changeset, demo included).
     contexts: ${LIQUIBASE_CONTEXTS:demo}
+  servlet:
+    multipart:
+      # No uploads anywhere in the contract. Off, so a multipart Content-Type is never parsed (a malformed one was a 500).
+      enabled: false
   jackson:
     deserialization:
       # Refuse request bodies with fields the contract does not list (for example a patient name).
@@ -73,7 +77,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
   endpoint:
     health:
       show-details: never
+  info:
+    # Publishes the info.* values below at /actuator/info.
+    env:
+      enabled: true
+
+# GET /actuator/info: which commit is running. Render sets RENDER_GIT_COMMIT for every deploy; the pipeline waits until the
+# live service reports the commit it just deployed, so the checks after a deploy test the new version, not the old one.
+info:
+  commit: ${RENDER_GIT_COMMIT:local}

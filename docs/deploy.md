@@ -107,3 +107,9 @@ yourself 10 minutes before presenting.
 | Neon Free | Permanent plan, no card; 1 GB storage per project; 100 compute-hours per project per month; compute suspends after 5 minutes idle and resumes on the next connection; limits suspend compute, never delete data |
 | Render Free Postgres (not used) | Expires 30 days after creation: the reason the database is on Neon |
 | Supabase Free (not used) | Projects pause after one week without activity; direct connection is IPv6-only, which Render cannot reach |
+
+## Required checks on `main`
+
+Repository **Settings > Rules > Rulesets > Protect main > Require status checks to pass**: add **Contract tests** next to
+**Contract lint** and **Build and test**, so a pull request whose build diverges from the contract cannot be merged.
+
