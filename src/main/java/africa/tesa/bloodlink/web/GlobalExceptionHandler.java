@@ -1,5 +1,6 @@
 package africa.tesa.bloodlink.web;
 
+import java.sql.SQLException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,6 +130,10 @@ public class GlobalExceptionHandler {
         if (isUnreadableQuery(ex)) {
             return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "The address could not be read.");
         }
+        if (isUnstorableText(ex)) {
+            return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST,
+                "A value contains a character that is not allowed.");
+        }
         LOG.error("Unhandled error", ex);
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
             "Something went wrong on our side. Please try again.");
@@ -142,6 +147,26 @@ public class GlobalExceptionHandler {
         for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
             if ("InvalidParameterException".equals(cause.getClass().getSimpleName())) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Text PostgreSQL cannot take at all, whatever the query: the null character (sent as %00 in an address, or escaped in
+     * JSON). The driver refuses it before sending ("Zero bytes may not occur in string parameters", state 22023), and the
+     * server refuses it with 22021 or 22P05. Either way the caller sent the character; the service did not fail, so it
+     * is a 400 wherever the text arrives: query, path or body.
+     */
+    private static boolean isUnstorableText(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql) {
+                String state = sql.getSQLState();
+                String message = String.valueOf(sql.getMessage());
+                if ("22021".equals(state) || "22P05".equals(state)
+                        || ("22023".equals(state) && message.contains("Zero bytes"))) {
+                    return true;
+                }
             }
         }
         return false;

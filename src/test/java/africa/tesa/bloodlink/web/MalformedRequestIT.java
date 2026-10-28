@@ -8,7 +8,7 @@ import java.net.http.HttpResponse;
 import org.junit.jupiter.api.Test;
 
 /**
- * Requests the contract tests (Schemathesis) found answered wrongly on 27 October: each one was a 500, or a 400 in Spring's
+ * Requests the contract tests (Schemathesis) found answered wrongly on 27 and 28 October: each one was a 500, or a 400 in Spring's
  * own body instead of the contract's Error shape, or a status the contract does not list. Each must now be a 400
  * MALFORMED_REQUEST in the Error shape, carrying the request id.
  */
@@ -60,6 +60,15 @@ class MalformedRequestIT extends AbstractPostgresIT {
 
         assertMalformed(get("/availability?area=" + area, token));
         assertMalformed(get("/organisations?area=" + area, token));
+    }
+
+    @Test
+    void aNullCharacterInAQueryValueIsA400NotA500() throws Exception {
+        String token = signIn(DONOR);
+
+        // PostgreSQL refuses the null character in any text, so it used to fail inside the query (found 28 October).
+        assertMalformed(get("/availability?area=%00Ikeja&component=PLASMA", token));
+        assertMalformed(get("/organisations?area=Ikeja%00&type=BLOOD_BANK", token));
     }
 
     private static void assertMalformed(HttpResponse<String> response) {
