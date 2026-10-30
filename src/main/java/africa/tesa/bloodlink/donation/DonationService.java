@@ -239,7 +239,8 @@ public class DonationService {
         String where = """
                  WHERE (CAST(:donor AS uuid) IS NULL OR b.donor_id = :donor)
                    AND (CAST(:bank AS uuid) IS NULL OR s.bank_id = :bank)
-                   AND (CAST(:status AS text) IS NULL OR b.status = :status)""";
+                   AND (CAST(:status AS text) IS NULL OR b.status = :status)
+                """;
         List<BookingView> items = jdbc.sql(BOOKING_SELECT + where + """
                  ORDER BY s.starts_at, b.created_at
                  LIMIT :limit OFFSET :offset""")
@@ -250,8 +251,10 @@ public class DonationService {
             .param("offset", (long) page * size)
             .query(DonationService::booking)
             .list();
+        // The text blocks are joined with a line break, so "b.slot_id" and "WHERE" never run together.
         long total = jdbc.sql("""
-                SELECT count(*) FROM booking b JOIN donation_slot s ON s.id = b.slot_id""" + where)
+                SELECT count(*) FROM booking b JOIN donation_slot s ON s.id = b.slot_id
+                """ + where)
             .param("donor", donor, Types.OTHER)
             .param("bank", bank, Types.OTHER)
             .param("status", status, Types.VARCHAR)
