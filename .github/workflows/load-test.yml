@@ -15,8 +15,11 @@ on:
         description: Seconds per step
         default: '45'
       target_p95_ms:
-        description: Target, p95 in milliseconds
+        description: Target for screens, p95 in milliseconds
         default: '500'
+      target_sign_in_p95_ms:
+        description: Target for sign-in, p95 in milliseconds
+        default: '1000'
 
 permissions:
   contents: read
@@ -49,6 +52,8 @@ jobs:
           RATES: ${{ inputs.rates }}
           STEP_SECONDS: ${{ inputs.step_seconds }}
           TARGET_P95_MS: ${{ inputs.target_p95_ms }}
+          TARGET_SIGN_IN_P95_MS: ${{ inputs.target_sign_in_p95_ms }}
+          K6_NO_USAGE_REPORT: 'true'
           RUN_ID: ${{ github.run_id }}
         run: |
           # k6 exits with 99 when a step misses the target. That is expected (the test is meant to go past the

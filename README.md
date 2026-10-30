@@ -223,5 +223,6 @@ entry. It skips any request someone is acting on at that moment and picks it up 
 - **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).
 - **Index analysis done** (30 Oct): the five most important queries, measured at 50,000 and 500,000 units, in
   `docs/data-model.md`. Reproduce it with the three scripts in `scripts/index-analysis/`.
-- **Performance target:** p95 under 500 ms with fewer than 1% failures on the deployed service. The load test and
-  its saturation point are in `docs/performance.md` (Actions > load-test). Screenshots are added by 2 Nov.
+- **Performance target:** screens p95 under 500 ms, sign-in p95 under 1,000 ms, fewer than 1% failures, on the
+  deployed service. First run: the service keeps up to about 8 requests a second on the free host (0.1 CPU) and
+  queues from 10. Method, runs and saturation point: `docs/performance.md` (Actions > load-test).
