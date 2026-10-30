@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.2.2
+  version: 0.2.3
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
@@ -21,6 +21,12 @@ info:
     - Matching is by the exact blood group, rhesus type and component entered. The service never
       substitutes one group for another.
     - All data is fictional. Requests never carry a patient name.
+    - **Retrying a change of state** (approval, declination, issue, reversal, cancellation, hold release): a repeat
+      never applies twice. Each checks the request's current state inside its transaction, so a second call changes
+      nothing and answers 409 with the code for the state the request is now in. After a timeout or a dropped
+      connection, the interface reads the request (`GET /requests/{requestId}`) before deciding what to show, and does
+      not resend blindly. Operations that **create** something take an `Idempotency-Key` instead (`POST /requests`,
+      `POST /donation-slots`).
   contact:
     name: Team 4
 servers:
@@ -439,6 +445,12 @@ paths:
         409 `UNITS_NO_LONGER_AVAILABLE` and the request stays PENDING, so the bank can decline it
         or retry later. A unit can never be held by two reservations at once; the database enforces this.
 
+        **The hold** (ADR-002) starts at this approval and lasts by urgency: EMERGENCY 1 hour, URGENT 2 hours,
+        ROUTINE 4 hours. Each reservation's `holdExpiresAt` is approval time plus that length; show it as
+        "hold ends at". When it passes before the units are issued, the reservation reads `LAPSED` and the units count
+        as available again at once, even before any background job runs; the request reads `LAPSED`, which is final
+        (approval needs a PENDING request), so the hospital makes a new request.
+
         Not idempotent: approving an already approved request returns 409 `REQUEST_NOT_PENDING`.
       x-safety: neither
       parameters:
@@ -618,7 +630,7 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 code: REQUEST_NOT_APPROVED
-                message: This request cannot be issued because its hold lapsed at 11:06. Approve it again if units are free.
+                message: 'This request cannot be issued: its hold has lapsed. The hospital can make a new request.'
                 requestId: 7f9c2b1e-4c1a-4f7e-9d0b-2a6c8e1f3b55
                 details: []
         '500':
@@ -695,7 +707,8 @@ paths:
         **Only staff of the hospital that made the request.** Other hospitals receive 404; bank staff, donors and
         the administrator receive 403. Allowed while the request is PENDING or APPROVED. Cancelling an APPROVED
         request releases its holds in the same transaction: each reservation becomes RELEASED and each unit
-        returns to AVAILABLE. The request becomes CANCELLED. Not idempotent: a second cancellation returns 409.
+        returns to AVAILABLE, or becomes EXPIRED if it is past its expiry date (an expired unit never returns to
+        stock). The request becomes CANCELLED. A second cancellation changes nothing and returns 409 `REQUEST_CLOSED`.
       x-safety: neither
       parameters:
         - $ref: '#/components/parameters/RequestIdHeader'
@@ -760,8 +773,10 @@ paths:
         - the emergency request is then approved exactly as `POST /requests/{id}/approval` would. If it still cannot
           be met in full, nothing is released (all or nothing).
 
-        The routine request goes back to PENDING with a HOLD_RELEASED history entry naming the emergency
-        request and the reason, so it is never silently lost. The response is the emergency request, now APPROVED.
+        The released units return to AVAILABLE before the emergency is approved, or become EXPIRED if past their
+        expiry date (an expired unit never returns to stock). The routine request goes back to PENDING with a
+        HOLD_RELEASED history entry naming the emergency request and the reason, so it is never silently lost.
+        The response is the emergency request, now APPROVED.
       x-safety: neither
       parameters:
         - $ref: '#/components/parameters/RequestIdHeader'
@@ -857,10 +872,24 @@ paths:
       tags: [Donations]
       operationId: createDonationSlot
       summary: Open a donation slot at the signed-in staff member's bank
-      description: Bank staff only. The bank comes from the token. Not safe to repeat; each call opens a new slot.
-      x-safety: neither
+      description: |
+        Bank staff only. The bank comes from the token.
+
+        **Safe to submit twice**, the same way as `POST /requests`: the client sends an `Idempotency-Key` (a UUID)
+        created once per form submission and reused on every retry of it.
+        - First time a key is seen: 201, slot opened.
+        - Same key, same body: 200 with the slot already opened, and `Idempotent-Replayed: true`. No second slot.
+        - Same key, different body: 422 `IDEMPOTENCY_KEY_REUSED`.
+      x-safety: idempotent
       parameters:
         - $ref: '#/components/parameters/RequestIdHeader'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Client-generated UUID, one per form submission, reused on retries.
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -877,6 +906,20 @@ paths:
           headers:
             X-Request-Id:
               $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationSlot'
+        '200':
+          description: Replay of an earlier submission with the same key and body; nothing new opened
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+            Idempotent-Replayed:
+              description: Always `true` on a replay.
+              schema:
+                type: string
+                enum: ['true']
           content:
             application/json:
               schema:
@@ -1465,6 +1508,8 @@ components:
         LAPSED: the hold passed before issue; units returned to stock. A reversed issue, or a routine hold
         released for an emergency, puts the request back to PENDING.
         UNIT_EXPIRED: a reserved unit passed its expiry date before issue.
+        LAPSED and UNIT_EXPIRED are final, like DECLINED and CANCELLED: approval needs a PENDING request, so the
+        hospital makes a new request.
       enum: [PENDING, APPROVED, DECLINED, CANCELLED, FULFILLED, LAPSED, UNIT_EXPIRED]
 
     ReservationStatus:
@@ -1762,7 +1807,9 @@ components:
         holdExpiresAt:
           type: string
           format: date-time
-          description: The hold ends at this time. Show it as "hold ends at".
+          description: |
+            The hold ends at this time: approval time plus 1 hour (EMERGENCY), 2 hours (URGENT) or 4 hours (ROUTINE).
+            Show it as "hold ends at". After it, the reservation reads `LAPSED` and its unit is available stock again.
         createdAt:
           type: string
           format: date-time
