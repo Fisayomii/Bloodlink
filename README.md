@@ -219,5 +219,7 @@ entry. It skips any request someone is acting on at that moment and picks it up 
 - **Partial approval** is not allowed: approval reserves every unit asked for, or nothing. Asked the client.
 - **Free hosting sleeps:** the first request after 15 idle minutes waits for the service to wake (measured 28 s).
 - **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).
-- **Still to measure:** the load test with its saturation point and the index analysis for five queries (31 Oct–2 Nov).
-  Screenshots and performance figures are added then.
+- **Index analysis done** (30 Oct): the five most important queries, measured at 50,000 and 500,000 units, in
+  `docs/data-model.md`. Reproduce it with the three scripts in `scripts/index-analysis/`.
+- **Still to measure:** the load test with its saturation point (31 Oct–2 Nov). Screenshots and performance figures are
+  added then.

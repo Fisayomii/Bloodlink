@@ -14,7 +14,10 @@ spring:
       maximum-pool-size: ${DB_POOL_SIZE:5}
       # Dates in the database ("today", expiry dates) follow Lagos time. Stored times (timestamptz) are unaffected.
       # This is a per-connection setting, so use the database's DIRECT connection, not a transaction pooler.
-      connection-init-sql: SET TIME ZONE 'Africa/Lagos'
+      # plan_cache_mode: always plan with the real values. Queries filter with "CAST(:x AS ...) IS NULL OR column = :x";
+      # with a reused generic plan (the driver prepares a statement on the server after 5 runs) PostgreSQL cannot drop
+      # the unused filters, and availability search read every available unit (13 ms instead of 0.5 ms, data-model.md).
+      connection-init-sql: SET TIME ZONE 'Africa/Lagos'; SET plan_cache_mode = force_custom_plan
       # Neon suspends an idle database after 5 minutes; the first connection after that can take a second or two.
       connection-timeout: 30000
       # Close connections before a serverless database drops them on its side. No keepalive on purpose: pinging idle
