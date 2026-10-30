@@ -99,6 +99,26 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
+            <!-- Migrations from the pipeline: mvn liquibase:update / liquibase:rollback with -Dliquibase.url, .username,
+                 .password and .contexts. The same Liquibase version as the service (managed by Spring Boot) and the same
+                 changelog files, so the pipeline and the service never disagree about a migration. -->
+            <plugin>
+                <groupId>org.liquibase</groupId>
+                <artifactId>liquibase-maven-plugin</artifactId>
+                <version>${liquibase.version}</version>
+                <configuration>
+                    <changeLogFile>db/changelog/db.changelog-master.yaml</changeLogFile>
+                    <searchPath>${project.basedir}/src/main/resources</searchPath>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <version>${postgresql.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
             <!-- Ships the committed contract inside the jar as /openapi.yaml, so the Swagger page (static/index.html)
                  always shows the agreed document, never one generated from the code. -->
             <plugin>
