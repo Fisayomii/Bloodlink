@@ -120,6 +120,7 @@ All fictional. Every account's password is **`Demo-Password-1`**.
 | Hospital staff | `staff@ikorodu.hospital.demo` | Ikorodu Children's Hospital (demo), Ikorodu |
 | Hospital staff | `staff@vi.hospital.demo` | Victoria Island Medical Centre (demo), Victoria Island |
 | Donor | `donor@bloodlink.demo` | none |
+| Donor | `donor2@bloodlink.demo` | none |
 
 **Try it in Swagger** (http://localhost:8080/): open **POST /sessions → Try it out**, sign in with one of the accounts above,
 copy `accessToken` from the response, click **Authorize** (padlock, top right), paste it, and every call now runs as that user.
@@ -156,6 +157,21 @@ Cases worth showing:
 Try it in Swagger: as `staff@lagos-central.bank.demo`, approve one of the pending O-negative requests, then issue it, then
 reverse the issue and open `GET /units/{id}` for the unit: both ISSUED and ISSUE_REVERSED are there.
 
+## Donation slots and bookings (contract v0.2)
+
+| Who | Call | What happens |
+| --- | --- | --- |
+| Anyone signed in | `GET /donation-slots` | Slots in the next 14 days (Lagos dates), with `placesLeft` and `computedAt` |
+| Bank staff | `POST /donation-slots` with an `Idempotency-Key` | Opens a slot at their own bank (up to 8 hours, 1 to 50 places); a retry with the same key opens nothing new |
+| Donors | `POST /donation-slots/{id}/bookings` | Takes a place. Never beyond capacity, even for two donors in the same second (ADR-006); a second booking of the same slot is refused |
+| Donors, bank staff, administrator | `GET /bookings` | A donor's own bookings; bank staff see their bank's slots |
+| The donor who booked | `POST /bookings/{id}/cancellation` | Frees the place, until the slot starts |
+| The slot's bank staff | `POST /bookings/{id}/attendance` | ATTENDED or NO_SHOW, once the slot has started |
+
+**Demonstration slots** (`008-demo-slots.sql`, `demo` context) are topped up on every deploy: each demo bank has a 09:00
+slot (4 places) and a 14:00 slot (6 places) on each of the next 14 days, and `donor@bloodlink.demo` has a place in the next
+Lagos Central 09:00 slot. To show the capacity rule, sign in as both donors and book the last place of a slot.
+
 ## The rule this product depends on
 
 A unit is reserved for at most one request at a time, even when three hospitals ask for the last unit in the same second.
@@ -177,8 +193,8 @@ are computed on every read (ADR-003), so a lapsed hold is never shown as held an
 
 ## Known limitations (26 Oct checkpoint)
 
-- **Not built yet:** the hold and expiry sweep jobs (reads are already correct without them), donation slots and
-  bookings, and the dashboard. In contract v0.2; planned for 28–30 Oct. Until then those paths answer 404.
+- **Not built yet:** the hold and expiry sweep jobs (reads are already correct without them) and the dashboard. In
+  contract v0.2; planned for 30 Oct–1 Nov. Until then `GET /dashboard` answers 404.
 - **Partial approval** is not allowed: approval reserves every unit asked for, or nothing. Asked the client.
 - **Free hosting sleeps:** the first request after 15 idle minutes waits for the service to wake (measured 28 s).
 - **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).

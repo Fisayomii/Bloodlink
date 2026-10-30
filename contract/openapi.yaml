@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.2.4
+  version: 0.2.5
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
@@ -843,14 +843,14 @@ paths:
         - name: from
           in: query
           required: false
-          description: First day to include. Default today.
+          description: First day to include. Default today. Dates from 2000 to 2100.
           schema:
             type: string
             format: date
         - name: to
           in: query
           required: false
-          description: Last day to include. Default 14 days after `from`. At most 31 days after `from`.
+          description: Last day to include. Default 14 days after `from`. At most 31 days after `from`, and not after 2100.
           schema:
             type: string
             format: date

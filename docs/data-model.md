@@ -24,6 +24,8 @@ erDiagram
 | `unit` | One row per blood unit (bag) | One known state at a time; group, rhesus, component and expiry required; expiry after collection; only a blood bank can hold units; reference unique within its bank |
 | `blood_request` | A hospital's request to one bank | Never any patient detail (no column for one); bank must be a blood bank and hospital a hospital; quantity 1 to 20; a declined request always has its reason; one request per user and idempotency key |
 | `reservation` | Links a request to one unit, with a hold expiry | **At most one ACTIVE reservation per unit** (`reservation_one_active_hold_idx`); an ACTIVE reservation has no end time, every other status has one |
+| `donation_slot` | A time at a blood bank when donors can give, with a capacity | Only a blood bank; ends after it starts and within 8 hours; capacity 1 to 50; one slot per user and idempotency key |
+| `booking` | A donor's place in a slot | **Never more active bookings than places** (`booking_one_active_per_place_idx` with `place_no BETWEEN 1 AND slot_capacity`, ADR-006); one active booking per donor per slot; the capacity copied onto the booking must match the slot (foreign key) |
 | `activity` | History of units and requests | Append-only: a trigger refuses any edit or delete, so corrections are new rows and both stay visible |
 
 ## How "one unit, one reservation" holds under concurrent use
@@ -95,4 +97,4 @@ and the partial `unit_available_idx` already covers the one state that is search
 
 ## Still to add
 
-Donation slots and bookings (with a capacity rule), in a later changeset.
+The dashboard reads existing tables; no new table is planned.
