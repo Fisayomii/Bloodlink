@@ -111,19 +111,25 @@ public class DashboardService {
             .single();
     }
 
+    /**
+     * Running holds ending within the window: ACTIVE, time left, unit not expired (the reservation_status view's ACTIVE,
+     * written against the tables so reservation_active_hold_expiry_idx serves it; through the view's CASE it read every
+     * reservation and every unit, docs/data-model.md).
+     */
     private List<HoldEndingSoon> holdsEndingSoon(UUID bank) {
         return jdbc.sql("""
-                SELECT rs.request_id, br.reference AS request_reference, rs.hold_expires_at,
+                SELECT r.request_id, br.reference AS request_reference, r.hold_expires_at,
                        h.id AS hospital_id, h.name AS hospital_name, h.type AS hospital_type, h.area AS hospital_area,
                        u.id AS unit_id, u.reference AS unit_reference, u.expiry_date
-                  FROM reservation_status rs
-                  JOIN blood_request br ON br.id = rs.request_id
+                  FROM reservation r
+                  JOIN unit u ON u.id = r.unit_id
+                  JOIN blood_request br ON br.id = r.request_id
                   JOIN organisation h ON h.id = br.hospital_id
-                  JOIN unit u ON u.id = rs.unit_id
-                 WHERE rs.effective_status = 'ACTIVE'
-                   AND rs.hold_expires_at <= now() + make_interval(mins => :minutes)
+                 WHERE r.status = 'ACTIVE' AND r.hold_expires_at > now()
+                   AND r.hold_expires_at <= now() + make_interval(mins => :minutes)
+                   AND u.expiry_date >= current_date
                    AND (CAST(:bank AS uuid) IS NULL OR br.bank_id = :bank)
-                 ORDER BY rs.hold_expires_at, u.reference
+                 ORDER BY r.hold_expires_at, u.reference
                  LIMIT :limit""")
             .param("minutes", (int) holdsEndingWithin.toMinutes())
             .param("bank", bank, Types.OTHER)

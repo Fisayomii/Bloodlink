@@ -24,3 +24,5 @@ databaseChangeLog:
       file: db/changelog/changes/007-donation-slots.sql
   - include:
       file: db/changelog/changes/008-demo-slots.sql
+  - include:
+      file: db/changelog/changes/009-request-status-indexable.sql
