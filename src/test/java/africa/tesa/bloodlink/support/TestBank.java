@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 public final class TestBank {
 
     /** BCrypt hash of Demo-Password-1 (the same password as every demo account). */
-    private static final String DEMO_PASSWORD_HASH = "$2a$10$iEsVOuGpIQHFvUAdn6Kroe.v5cWJBSGtEY.cNQbHKIL2UQw0M0QXC";
+    static final String DEMO_PASSWORD_HASH = "$2a$10$iEsVOuGpIQHFvUAdn6Kroe.v5cWJBSGtEY.cNQbHKIL2UQw0M0QXC";
     private static final ZoneId LAGOS = ZoneId.of("Africa/Lagos");
 
     private final JdbcClient jdbc;
@@ -62,6 +62,26 @@ public final class TestBank {
             .params(id, "TB-" + UUID.randomUUID().toString().substring(0, 13), group, rhesus, component,
                 today.minusDays(20), today.plusDays(expiresInDays), state, staffId)
             .query(UUID.class).single();
+    }
+
+    /**
+     * Opens a donation slot at this bank starting the given number of minutes from now (negative = already started),
+     * lasting one hour. Written straight to the database, so a test can make a slot that has already started.
+     */
+    public UUID addSlot(long startsInMinutes, int capacity) {
+        return jdbc.sql("""
+                INSERT INTO donation_slot (bank_id, starts_at, ends_at, capacity, created_by, idempotency_key, payload_hash)
+                VALUES (?, now() + make_interval(mins => ?), now() + make_interval(mins => ?) + interval '1 hour', ?, ?,
+                        gen_random_uuid(), 'test')
+                RETURNING id""")
+            .params(id, (int) startsInMinutes, (int) startsInMinutes, capacity, staffId)
+            .query(UUID.class).single();
+    }
+
+    /** Active bookings (BOOKED or ATTENDED) on a slot, straight from the database. */
+    public int activeBookings(UUID slot) {
+        return jdbc.sql("SELECT count(*) FROM booking WHERE slot_id = ? AND status IN ('BOOKED', 'ATTENDED')")
+            .param(slot).query(Integer.class).single();
     }
 
     /** Number of ACTIVE reservations on a unit, straight from the database. */

@@ -62,6 +62,44 @@ Same test on `main`, green: one 201, two 409s, one active hold, five rounds.
 
 ![Build and test passing on main](evidence/main-green.png)
 
+## The slot capacity rule fails without its protection
+
+The brief: "A donation slot cannot be booked beyond its capacity, including when two donors book the last place in the
+same second."
+
+**The test:** `src/test/java/africa/tesa/bloodlink/donation/ConcurrentBookingIT.java`. Through the real HTTP service:
+two donors book the last place of a 3-place slot at the same instant (expects one 201, one 409 `SLOT_FULL`, 3 active
+bookings), and ten donors book a 3-place slot at the same instant (expects three 201s, seven `SLOT_FULL`, three
+distinct places). Five rounds each.
+
+**The protection (ADR-006):** the place index `booking_one_active_per_place_idx` with `place_no BETWEEN 1 AND
+slot_capacity` (`007-donation-slots.sql`), and the slot row lock in `DonationService.book`.
+
+**How the failing run is produced (never merged):** apply `EVIDENCE-ONLY-remove-slot-capacity-protection.patch` on a
+throwaway branch. It removes the place index and the slot lock, and adds a 0.2-second pause between choosing a place and
+inserting the booking. The pause only widens the window in which the race happens; it does not create it.
+
+```powershell
+git checkout main
+git pull
+git checkout -b evidence/no-slot-protection
+git am "$HOME\Downloads\EVIDENCE-ONLY-remove-slot-capacity-protection.patch"
+git push -u origin evidence/no-slot-protection
+```
+
+Open a **draft** pull request. **Build and test** goes red: `ConcurrentBookingIT` reports more 201s than places and more
+active bookings than the capacity, and `SchemaRulesIT.aSlotCanNeverHoldMoreActiveBookingsThanItHasPlaces` reports a
+second booking on place 1 accepted. Screenshot it into `docs/evidence/`, close the pull request without merging, delete
+the branch.
+
+| Date | Run | Protection | Result | Link |
+| --- | --- | --- | --- | --- |
+| 2026-10-30 | Local PostgreSQL 16, booking SQL raced by six sessions for three places | Lock and index | 3 active bookings: full, never over | |
+| 2026-10-30 | Same, slot lock removed | Index only | 1 active booking: never over capacity; the others found their place taken | |
+| 2026-10-30 | Same, lock and index removed | Off | 6 active bookings on a 3-place slot | |
+| | CI, `ConcurrentBookingIT`, every pull request and push to `main` | On | Expected green: one 201 and one `SLOT_FULL`; three of ten (record the run) | |
+| | CI, draft PR `evidence/no-slot-protection` | Off | Expected red: more bookings than places (record what the run shows) | |
+
 ## Every rule and the test that fails without it
 
 The brief: "Every business rule listed for your product has a test that fails when the rule is removed." Remove the
@@ -84,4 +122,6 @@ protection named in the middle column and the test on the right goes red.
 | Submitting the same request twice records one | `blood_request_idempotency_key` + `ON CONFLICT DO NOTHING` | `RequestsIT.submittingTwiceWithTheSameKeyRecordsOneRequest`, `SchemaRulesIT.theSameIdempotencyKeyFromTheSameUserCreatesOnlyOneRequest` |
 | Availability figures are derived and say when they were computed | Computed per request with `computedAt` | `AvailabilityIT.figuresSayWhenTheyWereComputedAndHowMatchingWorks` |
 | A donation slot is never booked beyond its capacity, even with two donors at once | Next change (contract v0.2) | To come |
-
+| A donation slot is never booked beyond its capacity, even when two donors book the last place in the same second | Place index and slot lock (ADR-006, `007-donation-slots.sql`, `DonationService.book`) | `ConcurrentBookingIT`, `SchemaRulesIT.aSlotCanNeverHoldMoreActiveBookingsThanItHasPlaces`, `BookingsIT.aFullSlotRefusesTheNextDonor` |
+| A donor holds one place per slot; a cancelled place can be booked again | `booking_one_active_per_donor_idx`; partial indexes count only BOOKED and ATTENDED | `BookingsIT.bookingTheSameSlotAgainRecordsOneBooking`, `cancellingFreesThePlaceForAnotherDonor`, `SchemaRulesIT.aCancelledPlaceCanBeTakenAgainButADonorHoldsOnePlacePerSlot` |
+| Only donors book, only bank staff open slots, only the donor cancels, only the slot's bank records attendance | `SecurityConfig` role rules; `DonationService` (another donor or bank gets 404) | `RoleRulesIT.onlyDonorsBookDonationSlots`, `onlyBankStaffOpenDonationSlots`, `donorsCannotRecordAttendance`, `BookingsIT.onlyTheDonorWhoBookedCanCancelAndOthersAreToldItDoesNotExist`, `anotherBanksStaffCannotRecordAttendanceAndAreToldItDoesNotExist` |

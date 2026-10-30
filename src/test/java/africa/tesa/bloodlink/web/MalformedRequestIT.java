@@ -71,6 +71,24 @@ class MalformedRequestIT extends AbstractPostgresIT {
         assertMalformed(get("/organisations?area=Ikeja%00&type=BLOOD_BANK", token));
     }
 
+    @Test
+    void aBlankIdInThePathIsA400NotA500() throws Exception {
+        // Spring turns " " into no id at all and reports a missing path value (found 30 October).
+        assertMalformed(postJson("/bookings/%20/cancellation", "", signIn(DONOR)));
+        assertMalformed(postJson("/requests/%20/approval", "", signIn(LAGOS_BANK_STAFF)));
+    }
+
+    @Test
+    void aVeryLongQueryStillGetsTheContractErrorShape() throws Exception {
+        // About 9 KB of query, as the contract tests sent: over Tomcat's 8 KB default, which answered in HTML.
+        String query = "size=x&".repeat(1300);
+
+        HttpResponse<String> response = get("/bookings?" + query, signIn(DONOR));
+
+        assertMalformed(response);
+        assertThat(response.headers().firstValue("Content-Type")).hasValueSatisfying(type -> assertThat(type).contains("json"));
+    }
+
     private static void assertMalformed(HttpResponse<String> response) {
         assertThat(response.statusCode()).as(response.body()).isEqualTo(400);
         assertThat((String) json(response.body(), "$.code")).isEqualTo("MALFORMED_REQUEST");

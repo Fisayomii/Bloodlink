@@ -115,6 +115,40 @@ class SchemaRulesIT extends AbstractPostgresIT {
         assertThat(reference).matches("^REQ-\\d{4}-\\d{6}$");
     }
 
+    @Test
+    void aSlotCanNeverHoldMoreActiveBookingsThanItHasPlaces() {
+        UUID slot = slot(2);
+        book(slot, 1, user("DONOR", null));
+        book(slot, 2, user("DONOR", null));
+
+        // A third active booking has nowhere to go: place 1 is taken, and there is no place 3 in a 2-place slot.
+        assertThatThrownBy(() -> book(slot, 1, user("DONOR", null))).isInstanceOf(DuplicateKeyException.class);
+        assertThatThrownBy(() -> book(slot, 3, user("DONOR", null))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void aBookingCannotClaimABiggerCapacityThanItsSlot() {
+        UUID slot = slot(2);
+
+        assertThatThrownBy(() -> jdbc.sql("""
+                INSERT INTO booking (slot_id, slot_capacity, place_no, donor_id) VALUES (?, 10, 3, ?)""")
+            .params(slot, user("DONOR", null)).update()).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void aCancelledPlaceCanBeTakenAgainButADonorHoldsOnePlacePerSlot() {
+        UUID slot = slot(3);
+        UUID donor = user("DONOR", null);
+        book(slot, 1, donor);
+        jdbc.sql("UPDATE booking SET status = 'CANCELLED', status_changed_at = now() WHERE slot_id = ? AND place_no = 1")
+            .param(slot).update();
+
+        book(slot, 1, user("DONOR", null));
+        book(slot, 2, donor);
+
+        assertThatThrownBy(() -> book(slot, 3, donor)).isInstanceOf(DuplicateKeyException.class);
+    }
+
     // --- fixtures: every test makes its own rows, because the database is shared across the test run ---
 
     private UUID organisation(String type) {
@@ -158,5 +192,20 @@ class SchemaRulesIT extends AbstractPostgresIT {
     private int activeHolds(UUID unit) {
         return jdbc.sql("SELECT count(*) FROM reservation WHERE unit_id = ? AND status = 'ACTIVE'")
             .param(unit).query(Integer.class).single();
+    }
+
+    private UUID slot(int capacity) {
+        return jdbc.sql("""
+                INSERT INTO donation_slot (bank_id, starts_at, ends_at, capacity, created_by, idempotency_key, payload_hash)
+                VALUES (?, now() + interval '1 day', now() + interval '1 day 1 hour', ?, ?, gen_random_uuid(), 'test')
+                RETURNING id""")
+            .params(bank, capacity, bankUser).query(UUID.class).single();
+    }
+
+    private void book(UUID slot, int place, UUID donor) {
+        jdbc.sql("""
+                INSERT INTO booking (slot_id, slot_capacity, place_no, donor_id)
+                SELECT id, capacity, ?, ? FROM donation_slot WHERE id = ?""")
+            .params(place, donor, slot).update();
     }
 }

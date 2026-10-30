@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 class RoleRulesIT extends AbstractPostgresIT {
 
     private static final String A_REQUEST = "/requests/5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e";
+    private static final String A_SLOT = "/donation-slots/2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f6a";
+    private static final String A_BOOKING = "/bookings/4e5f6a7b-8c9d-4e0f-a1b2-c3d4e5f6a7b8";
 
     @Test
     void hospitalStaffCannotRecordUnits() throws Exception {
@@ -96,6 +98,30 @@ class RoleRulesIT extends AbstractPostgresIT {
     @Test
     void hospitalStaffCannotReadAUnitsHistory() throws Exception {
         assertRefused(get("/units/3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f", signIn(YABA_HOSPITAL_STAFF)));
+    }
+
+    @Test
+    void onlyBankStaffOpenDonationSlots() throws Exception {
+        for (String account : new String[] {YABA_HOSPITAL_STAFF, DONOR}) {
+            assertRefused(postJson("/donation-slots", "{}", signIn(account)));
+        }
+    }
+
+    @Test
+    void onlyDonorsBookDonationSlots() throws Exception {
+        for (String account : new String[] {LAGOS_BANK_STAFF, YABA_HOSPITAL_STAFF, ADMIN}) {
+            assertRefused(postJson(A_SLOT + "/bookings", "", signIn(account)));
+        }
+    }
+
+    @Test
+    void hospitalStaffCannotSeeDonationBookings() throws Exception {
+        assertRefused(get("/bookings", signIn(YABA_HOSPITAL_STAFF)));
+    }
+
+    @Test
+    void donorsCannotRecordAttendance() throws Exception {
+        assertRefused(postJson(A_BOOKING + "/attendance", "{\"outcome\":\"ATTENDED\"}", signIn(DONOR)));
     }
 
     @Test

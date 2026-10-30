@@ -113,6 +113,18 @@ class SeedDataIT extends AbstractPostgresIT {
         assertThat(withoutReason).isZero();
     }
 
+    @Test
+    void everyDemoBankHasDonationSlotsOnEachOfTheNextFourteenDays() {
+        // 008-demo-slots.sql tops these up on every deploy, so the demo never runs out of future slots.
+        int bankDays = count("""
+                SELECT count(DISTINCT (bank_id, (starts_at AT TIME ZONE 'Africa/Lagos')::date))::int FROM donation_slot
+                 WHERE payload_hash = 'seed'
+                   AND (starts_at AT TIME ZONE 'Africa/Lagos')::date
+                       BETWEEN (now() AT TIME ZONE 'Africa/Lagos')::date + 1 AND (now() AT TIME ZONE 'Africa/Lagos')::date + 14""");
+
+        assertThat(bankDays).isEqualTo(3 * 14);
+    }
+
     private int count(String sql) {
         return jdbc.sql(sql).query(Integer.class).single();
     }

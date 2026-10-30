@@ -66,7 +66,13 @@ public class SecurityConfig {
                 // Brief: "Only the requesting hospital can cancel its own request". Not the bank, not the administrator.
                 .requestMatchers(HttpMethod.POST, "/requests/*/cancellation").hasRole("HOSPITAL_STAFF")
                 .requestMatchers(HttpMethod.GET, "/units/*").hasAnyRole("BANK_STAFF", "ADMIN")
-                // Everything else (organisations, availability, one request) needs any signed-in user.
+                // Donations. Cancelling a booking is open to any signed-in user here because only its own donor may do it,
+                // and anyone else is told it does not exist (404), checked in DonationService.
+                .requestMatchers(HttpMethod.POST, "/donation-slots").hasRole("BANK_STAFF")
+                .requestMatchers(HttpMethod.POST, "/donation-slots/*/bookings").hasRole("DONOR")
+                .requestMatchers(HttpMethod.GET, "/bookings").hasAnyRole("DONOR", "BANK_STAFF", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/bookings/*/attendance").hasAnyRole("BANK_STAFF", "ADMIN")
+                // Everything else (organisations, availability, one request, donation slots) needs any signed-in user.
                 .anyRequest().authenticated())
             // Reads "Authorization: Bearer <token>", checks its signature and expiry, and takes the role from it.
             .oauth2ResourceServer(tokens -> tokens
