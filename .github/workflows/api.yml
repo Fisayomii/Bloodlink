@@ -112,7 +112,7 @@ jobs:
           cat service.log; exit 1
       - name: Every role, against the new build
         run: >-
-          bash scripts/contract-test.sh http://localhost:8080 25
+          bash scripts/contract-test.sh http://localhost:8080 200
           admin@bloodlink.demo staff@lagos-central.bank.demo staff@yaba.hospital.demo donor@bloodlink.demo
       - name: Keep the report and service log on failure
         if: failure()

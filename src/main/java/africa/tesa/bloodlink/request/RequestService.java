@@ -8,6 +8,7 @@ import africa.tesa.bloodlink.request.RequestReader.Scope;
 import africa.tesa.bloodlink.web.ApiException;
 import africa.tesa.bloodlink.web.DateRange;
 import africa.tesa.bloodlink.web.ErrorCode;
+import africa.tesa.bloodlink.web.Reason;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -231,11 +232,12 @@ public class RequestService {
     @Transactional
     public BloodRequestView decline(UUID requestId, String reason) {
         CurrentUser user = CurrentUser.get();
+        String stored = Reason.check("reason", reason);
         lockPendingForDecision(requestId, user);
         jdbc.sql("UPDATE blood_request SET state = 'DECLINED', decline_reason = ? WHERE id = ? AND state = 'PENDING'")
-            .params(reason.trim(), requestId)
+            .params(stored, requestId)
             .update();
-        history(requestId, "DECLINED", user.id(), reason.trim());
+        history(requestId, "DECLINED", user.id(), stored);
         return read(requestId);
     }
 

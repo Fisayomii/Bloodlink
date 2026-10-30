@@ -197,4 +197,20 @@ class ApprovalIT extends AbstractPostgresIT {
         assertThat(again.statusCode()).isEqualTo(409);
         assertThat((String) json(again.body(), "$.code")).isEqualTo("REQUEST_NOT_PENDING");
     }
+
+    @Test
+    void aReasonIsCountedAsTheDatabaseCountsItSoTwoEmojiAreTooShort() throws Exception {
+        // The contract tests' input (30 October): two control characters and two emoji. Java counted 6, trimmed the
+        // control characters, and the database (which counts each emoji once) refused the 2 that were left: a 500.
+        String id = createRequest(YABA_HOSPITAL_STAFF, bank.id(), "O", "NEGATIVE", "RED_CELLS", 1, "ROUTINE");
+
+        HttpResponse<String> tooShort = postJson("/requests/" + id + "/declination",
+            "{\"reason\":\"\\u0003\\u0004\\ud9fc\\udc9b\\ud85f\\ude0c\"}", bankToken);
+        HttpResponse<String> threeEmoji = postJson("/requests/" + id + "/declination",
+            "{\"reason\":\"\\ud83d\\ude00\\ud83d\\ude00\\ud83d\\ude00\"}", bankToken);
+
+        assertThat(tooShort.statusCode()).as(tooShort.body()).isEqualTo(422);
+        assertThat((String) json(tooShort.body(), "$.details[0].field")).isEqualTo("reason");
+        assertThat(threeEmoji.statusCode()).as("three characters is enough").isEqualTo(201);
+    }
 }
