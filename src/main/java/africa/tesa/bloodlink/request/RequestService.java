@@ -264,8 +264,9 @@ public class RequestService {
     }
 
     /**
-     * Ends lapsed holds on the given (already locked) units and returns those units to AVAILABLE. A request left with no
-     * running or issued hold becomes LAPSED, with a System entry in its history.
+     * Ends lapsed holds on the given (already locked) units and returns those units to AVAILABLE, or to EXPIRED if past
+     * their expiry date (an expired unit never returns to stock). A request left with no running or issued hold becomes
+     * LAPSED, with a System entry in its history. LAPSED is final: the hospital makes a new request.
      */
     private void releaseLapsedHolds(List<UUID> units) {
         List<UUID> affectedRequests = jdbc.sql("""
@@ -278,7 +279,10 @@ public class RequestService {
         if (affectedRequests.isEmpty()) {
             return;
         }
-        jdbc.sql("UPDATE unit SET state = 'AVAILABLE', version = version + 1 WHERE id IN (:units) AND state = 'RESERVED'")
+        jdbc.sql("""
+                UPDATE unit SET state = CASE WHEN expiry_date < current_date THEN 'EXPIRED' ELSE 'AVAILABLE' END,
+                                version = version + 1
+                 WHERE id IN (:units) AND state = 'RESERVED'""")
             .param("units", units)
             .update();
         List<UUID> lapsed = jdbc.sql("""

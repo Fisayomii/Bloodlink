@@ -48,6 +48,15 @@ Facts that shape the answer:
    - It is refused when free matching units could already meet the emergency: the bank approves the emergency
      directly, and no promise is broken without need.
 
+4. **When a hold ends unused.** The hold starts at approval; `holdExpiresAt` is approval time plus the length above.
+   Once it passes, before the units are issued:
+   - the reservation reads `LAPSED` and its units count as available stock straight away, on every read, even before
+     any background job runs (the `unit_status` and `reservation_status` views);
+   - the request reads `LAPSED`. This is final, like a declined request: approval needs a PENDING request, so the
+     hospital makes a new request. Issue is refused with a message saying so;
+   - whenever a held unit goes back (lapse, cancellation, hold release, reversed issue) it becomes AVAILABLE only if it
+     is not past its expiry date; otherwise EXPIRED. An expired unit never returns to stock.
+
 ## Alternatives rejected
 
 | Option | Why not |

@@ -65,10 +65,14 @@ class IssueIT extends AbstractPostgresIT {
         String id = approvedRequest();
         holdEndedAMinuteAgo(id);
 
-        assertRefused(postJson("/requests/" + id + "/issue", "", bankToken), "REQUEST_NOT_APPROVED");
+        HttpResponse<String> issue = postJson("/requests/" + id + "/issue", "", bankToken);
 
+        assertRefused(issue, "REQUEST_NOT_APPROVED");
+        assertThat((String) json(issue.body(), "$.message")).contains("make a new request");
         assertThat(storedState(unit)).as("nothing issued").isEqualTo("RESERVED");
         assertThat((String) json(get("/requests/" + id, bankToken).body(), "$.state")).isEqualTo("LAPSED");
+        // LAPSED is final: it cannot be approved again, which is why the message points to a new request.
+        assertThat(postJson("/requests/" + id + "/approval", "", bankToken).statusCode()).isEqualTo(409);
     }
 
     @Test

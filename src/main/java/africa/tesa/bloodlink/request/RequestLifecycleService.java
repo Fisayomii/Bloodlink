@@ -220,7 +220,10 @@ public class RequestLifecycleService {
         return requests.approve(emergencyId);
     }
 
-    /** Ends the request's running holds early (RELEASED) and puts their units back to AVAILABLE. */
+    /**
+     * Ends the request's running holds early (RELEASED). Each unit goes back to AVAILABLE, or to EXPIRED if it is past
+     * its expiry date (Lagos date), the same rule as reversing an issue: an expired unit never returns to stock.
+     */
     private void releaseHolds(UUID requestId, CurrentUser user, String unitNote) {
         List<Held> held = jdbc.sql("""
                 SELECT r.id, r.unit_id, u.reference
@@ -239,11 +242,17 @@ public class RequestLifecycleService {
         jdbc.sql("UPDATE reservation SET status = 'RELEASED', ended_at = now() WHERE id IN (:reservations) AND status = 'ACTIVE'")
             .param("reservations", held.stream().map(Held::reservationId).toList())
             .update();
-        jdbc.sql("UPDATE unit SET state = 'AVAILABLE', version = version + 1 WHERE id IN (:units) AND state = 'RESERVED'")
+        List<Restored> restored = jdbc.sql("""
+                UPDATE unit SET state = CASE WHEN expiry_date < current_date THEN 'EXPIRED' ELSE 'AVAILABLE' END,
+                                version = version + 1
+                 WHERE id IN (:units) AND state = 'RESERVED'
+                RETURNING id, state""")
             .param("units", held.stream().map(Held::unitId).toList())
-            .update();
-        for (Held unit : held) {
-            unitHistory(unit.unitId(), "HOLD_RELEASED", user.id(), unitNote);
+            .query((rs, row) -> new Restored(rs.getObject("id", UUID.class), rs.getString("state")))
+            .list();
+        for (Restored unit : restored) {
+            unitHistory(unit.id(), "HOLD_RELEASED", user.id(),
+                "EXPIRED".equals(unit.state()) ? unitNote + "; past its expiry date, so EXPIRED, not back to stock" : unitNote);
         }
     }
 
@@ -289,8 +298,10 @@ public class RequestLifecycleService {
 
     private static ApiException notApproved(Locked request) {
         String why = switch (request.effectiveState()) {
-            case "LAPSED" -> "its hold has lapsed. Approve it again if units are free";
-            case "UNIT_EXPIRED" -> "a reserved unit has expired, and an expired unit can never be issued";
+            // Both are final: approval needs a PENDING request, so the hospital makes a new request.
+            case "LAPSED" -> "its hold has lapsed. The hospital can make a new request";
+            case "UNIT_EXPIRED" -> "a reserved unit has expired, and an expired unit can never be issued. "
+                + "The hospital can make a new request";
             case "FULFILLED" -> "its units were already issued";
             default -> "it is " + describe(request.effectiveState());
         };
