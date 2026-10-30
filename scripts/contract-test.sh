@@ -21,9 +21,12 @@ ACCOUNTS=("$@")
 # them, so they are left out until built. Remove each one in the change that builds it (decisions file, 2026-10-27).
 NOT_YET_BUILT='^/dashboard'
 
-# Time budget per account, in seconds. Fuzzing keeps generating requests until it is spent, and a request that gets
-# no answer is reported as a failure instead of hanging the pipeline.
-MAX_TIME="${CONTRACT_TEST_MAX_TIME:-120}"
+# The same requests every time, for the same commit: a fixed number per operation (no time budget), a fixed seed and
+# one worker, so the order never changes. A pull request that passes therefore passes again on main. With a time budget
+# and two workers, a faster or slower runner sent different requests, and main found a failure its pull request had
+# not (30 October). A request that gets no answer still fails after 20 seconds, and the job has a hard time limit.
+# To explore new inputs on purpose, change SEED in its own pull request.
+SEED="${CONTRACT_TEST_SEED:-26102026}"
 
 # Which Schemathesis phases run. All three against the build in CI. Against the live service the pipeline sets
 # CONTRACT_TEST_PHASES=examples,coverage: random fuzzing sends attack-like headers (for example "__proto__"), and
@@ -45,11 +48,10 @@ for account in "${ACCOUNTS[@]}"; do
       --checks "${CHECKS}" \
       --exclude-path-regex "${NOT_YET_BUILT}" \
       --max-examples "${EXAMPLES}" \
-      --max-time "${MAX_TIME}" \
       --phases "${PHASES}" \
-      --workers 2 \
+      --workers 1 \
       --request-timeout 20 \
-      --seed 26102026 \
+      --seed "${SEED}" \
       --no-color \
       --report junit --report-junit-path "${report}"; then
     status=1

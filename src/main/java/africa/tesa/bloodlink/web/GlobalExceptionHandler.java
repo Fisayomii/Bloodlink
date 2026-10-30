@@ -2,6 +2,8 @@ package africa.tesa.bloodlink.web;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -32,6 +34,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Pattern CHECK_NAME = Pattern.compile("violates check constraint \"([A-Za-z0-9_]+)\"");
 
     /** A rule refused by a service: the status, code and message were chosen where the rule lives. */
     @ExceptionHandler(ApiException.class)
@@ -136,6 +139,13 @@ public class GlobalExceptionHandler {
         if (ex instanceof ErrorResponse spring && spring.getStatusCode().is4xxClientError()) {
             return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "The request could not be read.");
         }
+        // Safety net: a value the database's own rules refuse (a CHECK constraint) is the caller's input, so it is a 422,
+        // never a 500. It also means a service check is missing, so it is logged as a warning to be fixed.
+        String refused = refusedByCheck(ex);
+        if (refused != null) {
+            LOG.warn("A database CHECK refused a value the service accepted ({}); add the check to the service", refused);
+            return respond(ApiException.UNPROCESSABLE, ErrorCode.VALIDATION_FAILED, "A value is not allowed.");
+        }
         if (isUnstorableText(ex)) {
             return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST,
                 "A value contains a character that is not allowed.");
@@ -176,6 +186,19 @@ public class GlobalExceptionHandler {
             }
         }
         return false;
+    }
+
+    /** The name of the CHECK constraint that refused the write (SQL state 23514), or null. */
+    private static String refusedByCheck(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && "23514".equals(sql.getSQLState())) {
+                // PostgreSQL: new row for relation "table" violates check constraint "name". The message goes on to quote
+                // the whole row, which may hold anything a user typed, so the name is matched exactly.
+                Matcher name = CHECK_NAME.matcher(String.valueOf(sql.getMessage()));
+                return name.find() ? name.group(1) : "unknown constraint";
+            }
+        }
+        return null;
     }
 
     private static ResponseEntity<ApiError> respond(HttpStatus status, ErrorCode code, String message) {

@@ -5,6 +5,7 @@ import africa.tesa.bloodlink.auth.Role;
 import africa.tesa.bloodlink.request.RequestReader.Scope;
 import africa.tesa.bloodlink.web.ApiException;
 import africa.tesa.bloodlink.web.ErrorCode;
+import africa.tesa.bloodlink.web.Reason;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -97,6 +98,7 @@ public class RequestLifecycleService {
      */
     @Transactional
     public BloodRequestView reverseIssue(UUID requestId, String reason) {
+        reason = Reason.check("reason", reason);
         CurrentUser user = CurrentUser.get();
         Locked request = lockForBank(requestId, user);
         if (!"FULFILLED".equals(request.storedState())) {
@@ -149,6 +151,7 @@ public class RequestLifecycleService {
      */
     @Transactional
     public BloodRequestView cancel(UUID requestId, String reason) {
+        reason = Reason.check("reason", reason);
         CurrentUser user = CurrentUser.get();
         Locked request = lock(requestId);
         if (!user.is(Role.HOSPITAL_STAFF) || !user.worksFor(request.hospitalId())) {
@@ -174,6 +177,7 @@ public class RequestLifecycleService {
      */
     @Transactional
     public BloodRequestView releaseHoldFor(UUID routineId, UUID emergencyId, String reason) {
+        reason = Reason.check("reason", reason);
         CurrentUser user = CurrentUser.get();
         if (routineId.equals(emergencyId)) {
             throw ApiException.validation("forRequestId", "Must be a different request.");
@@ -319,7 +323,11 @@ public class RequestLifecycleService {
     /** Keeps a history note within the database's 500-character limit. */
     private static String note(String text) {
         String trimmed = text.trim();
-        return trimmed.length() <= NOTE_LIMIT ? trimmed : trimmed.substring(0, NOTE_LIMIT - 1) + "…";
+        // Counted in characters as the database counts them (code points), so an emoji is never cut in half.
+        if (trimmed.codePointCount(0, trimmed.length()) <= NOTE_LIMIT) {
+            return trimmed;
+        }
+        return trimmed.substring(0, trimmed.offsetByCodePoints(0, NOTE_LIMIT - 1)) + "…";
     }
 
     private record Held(UUID reservationId, UUID unitId, String reference) {
