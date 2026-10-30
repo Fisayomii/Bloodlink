@@ -39,6 +39,9 @@ spring:
 
 server:
   port: ${PORT:8080}
+  # Tomcat refuses a request line and headers over 8 KB itself, with its own HTML page, before our code can answer in the
+  # contract's Error shape. 32 KB lets a long query reach the service and get a JSON 400 (the contract tests sent 9 KB).
+  max-http-request-header-size: 32KB
   shutdown: graceful
   # Gzip JSON responses over 1 KB: lists of units and requests shrink several times over a slow mobile connection.
   compression:

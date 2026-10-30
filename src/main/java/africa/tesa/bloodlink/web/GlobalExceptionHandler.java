@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -129,6 +130,11 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiError> onUnexpected(Exception ex) {
         if (isUnreadableQuery(ex)) {
             return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "The address could not be read.");
+        }
+        // Any other client mistake Spring itself recognises (for example a path id that is blank, which Spring reports
+        // as a missing path value): a 400 in the contract's shape, never a 500. Found by the contract tests, 30 Oct.
+        if (ex instanceof ErrorResponse spring && spring.getStatusCode().is4xxClientError()) {
+            return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST, "The request could not be read.");
         }
         if (isUnstorableText(ex)) {
             return respond(HttpStatus.BAD_REQUEST, ErrorCode.MALFORMED_REQUEST,
