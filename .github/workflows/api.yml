@@ -175,6 +175,10 @@ jobs:
           python-version: '3.13'
       - run: pip install schemathesis==4.32.5
       - name: Administrator, against the live service
+        # No random fuzzing here: Render's firewall blocks attack-like requests before they reach the service. The
+        # build in CI is fuzzed as every role with nothing in front of it.
+        env:
+          CONTRACT_TEST_PHASES: examples,coverage
         run: bash scripts/contract-test.sh "${{ vars.API_URL }}" 5 admin@bloodlink.demo
       - name: Keep the report on failure
         if: failure()
