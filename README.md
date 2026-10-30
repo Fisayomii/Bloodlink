@@ -21,9 +21,11 @@ src/                    Spring Boot 4.1 service, Java 25
 docs/decisions.md       Every decision and contract change, dated, with two names
 docs/adr/               Five decision records (context, decision, rejected options, cost, what would reverse it)
 docs/data-model.md      Tables, the rules each constraint protects, indexes and measured query plans
+docs/performance.md     Performance target, load test method and results, saturation point
 docs/evidence.md        The concurrency test passing, and failing with the protection removed
 docs/ai-log.md          AI tools used, what was accepted, and what was checked and found wrong
-scripts/                Seed-data generator; the race check against the deployed service
+scripts/                Seed-data generator; the race check against the deployed service; index analysis
+loadtest/               The k6 load test (run by the load-test workflow)
 ```
 
 **The contract lives here and only here.** The interface repository copies it with `npm run contract:sync`,
@@ -221,5 +223,5 @@ entry. It skips any request someone is acting on at that moment and picks it up 
 - **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).
 - **Index analysis done** (30 Oct): the five most important queries, measured at 50,000 and 500,000 units, in
   `docs/data-model.md`. Reproduce it with the three scripts in `scripts/index-analysis/`.
-- **Still to measure:** the load test with its saturation point (31 Oct–2 Nov). Screenshots and performance figures are
-  added then.
+- **Performance target:** p95 under 500 ms with fewer than 1% failures on the deployed service. The load test and
+  its saturation point are in `docs/performance.md` (Actions > load-test). Screenshots are added by 2 Nov.

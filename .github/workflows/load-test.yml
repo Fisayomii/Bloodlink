@@ -1,0 +1,72 @@
+name: load-test
+
+# The load test against the deployed service (loadtest/bloodlink.js, results in docs/performance.md). Started by hand:
+# Actions > load-test > Run workflow. It takes about nine minutes with the default steps.
+#
+# Not on every push: it loads the free service for minutes at a time, and Render's free hours are shared by every
+# service in the workspace. The report appears on the run's summary page and as the "load-test-report" artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      rates:
+        description: Requests a second for each step, in order
+        default: '1,2,3,4,6,8,10,13,16,20'
+      step_seconds:
+        description: Seconds per step
+        default: '45'
+      target_p95_ms:
+        description: Target, p95 in milliseconds
+        default: '500'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-test
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: Load test on the deployed service
+    if: vars.API_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      K6_VERSION: v1.3.0
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install k6
+        run: |
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+      - name: Record the version under test
+        run: |
+          curl -fsS --max-time 120 "${{ vars.API_URL }}/actuator/info" | tee service-info.json
+      - name: Run the steps
+        env:
+          API_URL: ${{ vars.API_URL }}
+          RATES: ${{ inputs.rates }}
+          STEP_SECONDS: ${{ inputs.step_seconds }}
+          TARGET_P95_MS: ${{ inputs.target_p95_ms }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # k6 exits with 99 when a step misses the target. That is expected (the test is meant to go past the
+          # target), so only other failures fail the job.
+          set +e
+          k6 run --quiet loadtest/bloodlink.js
+          code=$?
+          set -e
+          cat loadtest-report.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\nService version: `%s`\n' "$(cat service-info.json)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 99 ]; then exit "$code"; fi
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-test-report
+          path: |
+            loadtest-report.md
+            loadtest-summary.json
+            service-info.json
+          if-no-files-found: ignore
