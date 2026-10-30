@@ -55,7 +55,7 @@ CREATE TABLE booking (
 );
 -- THE capacity rule: each place of a slot is held by at most one active booking. With places 1..capacity, a slot can
 -- never have more active bookings than its capacity, however many donors book at the same moment.
-CREATE UNIQUE INDEX booking_one_active_per_place_idx ON booking (slot_id, place_no) WHERE status IN ('BOOKED', 'ATTENDED');
+-- EVIDENCE ONLY, never merged: the place index is removed to show the capacity test failing without it.
 -- One active booking per donor per slot, so a double tap records one booking.
 CREATE UNIQUE INDEX booking_one_active_per_donor_idx ON booking (slot_id, donor_id) WHERE status IN ('BOOKED', 'ATTENDED');
 -- Serves "my bookings" for a donor.

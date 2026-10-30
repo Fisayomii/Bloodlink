@@ -171,7 +171,7 @@ public class DonationService {
             throw ApiException.forbidden("Only donors can book a donation slot.");
         }
         // Layer 1: one booking at a time per slot. A second donor waits here until the first commits.
-        LockedSlot slot = jdbc.sql("SELECT id, capacity, starts_at FROM donation_slot WHERE id = ? FOR UPDATE")
+        LockedSlot slot = jdbc.sql("SELECT id, capacity, starts_at FROM donation_slot WHERE id = ?")
             .param(slotId)
             .query((rs, row) -> new LockedSlot(rs.getObject("id", UUID.class), rs.getInt("capacity"),
                 rs.getObject("starts_at", OffsetDateTime.class).toInstant()))
@@ -196,6 +196,8 @@ public class DonationService {
         if (place.isEmpty()) {
             throw slotFull();
         }
+        // EVIDENCE ONLY, never merged: widens the window between choosing a place and taking it (docs/evidence.md).
+        jdbc.sql("SELECT pg_sleep(0.2)").query(String.class).single();
         // Layer 2: the place index. If this place was taken after all, nothing is inserted and the donor is told it is full.
         Optional<UUID> booked = jdbc.sql("""
                 INSERT INTO booking (slot_id, slot_capacity, place_no, donor_id)
