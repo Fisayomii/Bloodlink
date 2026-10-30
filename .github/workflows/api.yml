@@ -64,6 +64,48 @@ jobs:
             target/failsafe-reports
           retention-days: 7
 
+  migrations:
+    name: Migrations
+    # Brief: "Versioned migrations that run automatically in the pipeline and can be reversed." On every pull request
+    # and push: apply every migration to an empty PostgreSQL 17, roll every one back to the empty baseline, and apply
+    # them again. A changeset whose rollback is missing or wrong fails here, before it can reach the live database.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: bloodlink
+          POSTGRES_USER: bloodlink
+          POSTGRES_PASSWORD: bloodlink
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bloodlink" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB: >-
+        -Dliquibase.url=jdbc:postgresql://localhost:5432/bloodlink -Dliquibase.username=bloodlink
+        -Dliquibase.password=bloodlink -Dliquibase.contexts=demo
+      PGPASSWORD: bloodlink
+      LIQUIBASE_ANALYTICS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Apply every migration to an empty database
+        run: mvn -B -ntp liquibase:update $DB
+      - name: Roll every migration back to the empty baseline
+        run: |
+          mvn -B -ntp liquibase:rollback -Dliquibase.rollbackTag=v0-baseline $DB
+          left=$(psql -h localhost -U bloodlink -d bloodlink -tAc "SELECT count(*) FROM information_schema.tables
+                   WHERE table_schema = 'public' AND table_name NOT LIKE 'databasechangelog%'")
+          echo "Tables and views left after rolling back: $left"
+          if [ "$left" != "0" ]; then echo "::error::A rollback left $left tables or views behind"; exit 1; fi
+      - name: Apply them again
+        run: mvn -B -ntp liquibase:update $DB
+
   contract-test:
     name: Contract tests
     needs: build-and-test
@@ -126,7 +168,7 @@ jobs:
 
   deploy:
     name: Deploy
-    needs: [contract-lint, build-and-test, contract-test]
+    needs: [contract-lint, build-and-test, migrations, contract-test]
     # Only main, only after every check above is green.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -138,6 +180,29 @@ jobs:
       DEPLOY_HOOK: ${{ secrets.API_DEPLOY_HOOK }}
       API_URL: ${{ vars.API_URL }}
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      # The live database is migrated here, before the new version starts, so the service no longer migrates itself
+      # (host setting LIQUIBASE_ENABLED=false). Migrations are written to work with the version still running, because
+      # the old version keeps serving until the new one is healthy.
+      - name: Migrate the live database
+        env:
+          DB_URL: ${{ secrets.PROD_DATABASE_URL }}
+          DB_USERNAME: ${{ secrets.PROD_DATABASE_USERNAME }}
+          DB_PASSWORD: ${{ secrets.PROD_DATABASE_PASSWORD }}
+          CONTEXTS: ${{ vars.LIQUIBASE_CONTEXTS || 'demo' }}
+          LIQUIBASE_ANALYTICS_ENABLED: 'false'
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::warning::PROD_DATABASE_URL secret not set yet; the service migrates the database itself when it starts."
+            exit 0
+          fi
+          mvn -B -ntp liquibase:update -Dliquibase.url="$DB_URL" -Dliquibase.username="$DB_USERNAME" \
+            -Dliquibase.password="$DB_PASSWORD" -Dliquibase.contexts="$CONTEXTS"
       - name: Trigger deploy on the host
         run: |
           if [ -z "$DEPLOY_HOOK" ]; then

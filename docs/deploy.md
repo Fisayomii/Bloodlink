@@ -74,6 +74,7 @@ Repository **Settings > Secrets and variables > Actions**:
 | Where | Name | Value |
 | --- | --- | --- |
 | Secrets | `API_DEPLOY_HOOK` | Render's deploy hook URL |
+| Secrets | `PROD_DATABASE_URL`, `PROD_DATABASE_USERNAME`, `PROD_DATABASE_PASSWORD` | Neon's direct connection, for migrations (see "Migrations from the pipeline") |
 | Variables | `API_URL` | `https://<service>.onrender.com` (no trailing slash) |
 | Variables | `KEEP_WARM` | `false` (set `true` on demo days, see below) |
 
@@ -110,6 +111,31 @@ yourself 10 minutes before presenting.
 
 ## Required checks on `main`
 
-Repository **Settings > Rules > Rulesets > Protect main > Require status checks to pass**: add **Contract tests** next to
-**Contract lint** and **Build and test**, so a pull request whose build diverges from the contract cannot be merged.
+Repository **Settings > Rules > Rulesets > Protect main > Require status checks to pass**: add **Contract tests** and
+**Migrations** next to **Contract lint** and **Build and test**, so a pull request whose build diverges from the contract,
+or whose migration cannot be rolled back, cannot be merged.
+
+## Migrations from the pipeline
+
+The **Deploy** job migrates the live database before it starts the new version (`mvn liquibase:update`, the same
+Liquibase version and files as the service). Set up once:
+
+1. In GitHub, **Settings > Secrets and variables > Actions**, add three repository secrets from Neon's **direct**
+   connection (not the pooler): `PROD_DATABASE_URL` in JDBC form (`jdbc:postgresql://<host>/<db>?sslmode=require`),
+   `PROD_DATABASE_USERNAME` and `PROD_DATABASE_PASSWORD`. Use the rotated password; never paste it anywhere else.
+2. Push any change to `main` and check that **Deploy > Migrate the live database** says the database is up to date.
+3. In Render, set `LIQUIBASE_ENABLED=false`, so the service no longer migrates itself.
+
+Until the secrets exist the step only warns, and the service keeps migrating itself at start.
+
+**Rolling back the live database** (after rolling the code back first): from your machine, with the same three values,
+
+```powershell
+mvn -B liquibase:rollback "-Dliquibase.rollbackCount=1" "-Dliquibase.url=$env:PROD_DATABASE_URL" `
+  "-Dliquibase.username=$env:PROD_DATABASE_USERNAME" "-Dliquibase.password=$env:PROD_DATABASE_PASSWORD" "-Dliquibase.contexts=demo"
+```
+
+Every changeset has a rollback, and the **Migrations** job proves on every pull request that all of them run, down to the
+empty baseline and back up again. A migration must work with the version still running, because the old version keeps
+serving until the new one is healthy.
 
