@@ -72,6 +72,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/donation-slots/*/bookings").hasRole("DONOR")
                 .requestMatchers(HttpMethod.GET, "/bookings").hasAnyRole("DONOR", "BANK_STAFF", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/bookings/*/attendance").hasAnyRole("BANK_STAFF", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/dashboard").hasAnyRole("BANK_STAFF", "ADMIN")
                 // Everything else (organisations, availability, one request, donation slots) needs any signed-in user.
                 .anyRequest().authenticated())
             // Reads "Authorization: Bearer <token>", checks its signature and expiry, and takes the role from it.

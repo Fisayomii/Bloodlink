@@ -183,7 +183,8 @@ public class UnitService {
             .param("component", filter.component() == null ? null : filter.component().name(), Types.VARCHAR);
     }
 
-    private static UnitView toView(ResultSet rs, int row) throws SQLException {
+    /** Maps a row with the unit_status columns and the bank as org_id, org_name, org_type, org_area. */
+    public static UnitView toView(ResultSet rs, int row) throws SQLException {
         return new UnitView(
             rs.getObject("id", UUID.class),
             rs.getString("reference"),

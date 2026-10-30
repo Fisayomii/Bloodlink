@@ -125,6 +125,13 @@ class RoleRulesIT extends AbstractPostgresIT {
     }
 
     @Test
+    void onlyBankStaffAndTheAdministratorSeeTheDashboard() throws Exception {
+        for (String account : new String[] {YABA_HOSPITAL_STAFF, DONOR}) {
+            assertRefused(get("/dashboard", signIn(account)));
+        }
+    }
+
+    @Test
     void anySignedInRoleCanListOrganisations() throws Exception {
         for (String account : new String[] {ADMIN, LAGOS_BANK_STAFF, VI_HOSPITAL_STAFF, DONOR}) {
             assertThat(get("/organisations", signIn(account)).statusCode()).as(account).isEqualTo(200);

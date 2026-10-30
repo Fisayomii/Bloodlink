@@ -21,7 +21,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * Tests therefore share one database: each test creates its own rows with fresh ids instead of
  * assuming an empty table. The demo accounts (002-demo-accounts.sql) are always present.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// The sweep is off in tests, so they can check what reads show before any job has run; SweepIT runs it directly.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "app.sweep.enabled=false")
 public abstract class AbstractPostgresIT {
 
     @ServiceConnection

@@ -17,9 +17,7 @@ EXAMPLES="${2:?examples per operation}"
 shift 2
 ACCOUNTS=("$@")
 
-# Paths in the contract that the service does not implement yet. They answer 404, which the contract does not list for
-# them, so they are left out until built. Remove each one in the change that builds it (decisions file, 2026-10-27).
-NOT_YET_BUILT='^/dashboard'
+# Every path in the contract is built and tested (the dashboard was the last, 30 October).
 
 # The same requests every time, for the same commit: a fixed number per operation (no time budget), a fixed seed and
 # one worker, so the order never changes. A pull request that passes therefore passes again on main. With a time budget
@@ -46,7 +44,6 @@ for account in "${ACCOUNTS[@]}"; do
       --url "${BASE_URL}" \
       --header "Authorization: Bearer ${token}" \
       --checks "${CHECKS}" \
-      --exclude-path-regex "${NOT_YET_BUILT}" \
       --max-examples "${EXAMPLES}" \
       --phases "${PHASES}" \
       --workers 1 \
