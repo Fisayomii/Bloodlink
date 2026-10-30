@@ -11,6 +11,7 @@ import africa.tesa.bloodlink.unit.BloodType.UnitState;
 import africa.tesa.bloodlink.unit.UnitController.UnitCreate;
 import africa.tesa.bloodlink.unit.UnitController.UnitPage;
 import africa.tesa.bloodlink.web.ApiException;
+import africa.tesa.bloodlink.web.DateRange;
 import africa.tesa.bloodlink.web.ErrorCode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -60,6 +61,8 @@ public class UnitService {
             // SecurityConfig already limits this path to bank staff; this guards the service if that ever changes.
             throw ApiException.forbidden("Only blood bank staff can record units.");
         }
+        DateRange.checkBody("collectionDate", body.collectionDate());
+        DateRange.checkBody("expiryDate", body.expiryDate());
         LocalDate today = LocalDate.now(zone);
         if (body.collectionDate().isAfter(today)) {
             throw ApiException.validation("collectionDate", "Cannot be in the future.");

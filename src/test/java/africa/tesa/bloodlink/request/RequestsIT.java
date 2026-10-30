@@ -114,6 +114,18 @@ class RequestsIT extends AbstractPostgresIT {
     }
 
     @Test
+    void neededByAfter2100IsRefused() throws Exception {
+        String farAway = requestJson(LAGOS_BANK, "O", "NEGATIVE", "RED_CELLS", 1, "URGENT")
+            .replaceAll("\"neededBy\":\"[^\"]+\"", "\"neededBy\":\"2101-01-01T09:00:00Z\"");
+
+        HttpResponse<String> response = submit(YABA_HOSPITAL_STAFF, UUID.randomUUID(), farAway);
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        List<String> fields = json(response.body(), "$.details[*].field");
+        assertThat(fields).contains("neededBy");
+    }
+
+    @Test
     void quantityMustBeBetween1And20() throws Exception {
         HttpResponse<String> zero = submit(YABA_HOSPITAL_STAFF, UUID.randomUUID(),
             requestJson(LAGOS_BANK, "O", "NEGATIVE", "RED_CELLS", 0, "URGENT"));
