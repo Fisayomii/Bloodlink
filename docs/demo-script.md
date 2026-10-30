@@ -1,58 +1,112 @@
-# Monday checkpoint: service demo script
+# Demo script: three journeys from a clean start
 
-Journeys 1 to 3 from the brief, on the **deployed** service, using the demo data. About 6 minutes. Open the service's
-Swagger page (`/`) in a clean browser window. Password for every account: `Demo-Password-1`.
+Brief: "Three complete user journeys that can be demonstrated from a clean start, without improvising and without
+editing data by hand." This is the script for the final walkthrough and the live defence.
 
-## Before the session
+**Repeatable by design.** Every journey makes the records it needs through the product itself: a new unit, new
+requests, a new donation slot. Nothing depends on a seeded record that one rehearsal would use up, so the script works
+on the first run and the tenth. The seeded race (one O-negative unit, three pending requests at Lagos Central) is
+shown only by the automated tests, never clicked live, because approving it once uses it up.
 
-- [ ] Wake the service 10 minutes early: open `<service>/actuator/health` until it shows `{"status":"UP"}` (free hosts sleep).
-- [ ] Sign in once as each account below to check the logins work.
-- [ ] Have the green CI run of `ConcurrentApprovalIT` and the red run from `evidence/no-protection` open in tabs.
-- [ ] Have `docs/evidence.md` and `docs/data-model.md` open.
+Run it in the interface (https://bloodlink-orpin.vercel.app) in a clean browser window. Each step names the service
+call behind it, so the same step can be shown in the service's Swagger page (https://bloodlink-o2ie.onrender.com) if
+the interface is unavailable. Password for every account: `Demo-Password-1`.
 
-## 1. A blood bank records a unit (journey 1)
+About 9 minutes in this order: **2a, 1, 3, 2b**. Journey 2 opens a donation slot that starts a few minutes later,
+because attendance can only be recorded once a slot has started; journeys 1 and 3 fill the wait.
 
-1. **POST /sessions** as `staff@lekki.bank.demo`. Copy `accessToken`, **Authorize**.
-2. **POST /units** with today's collection date and an expiry in 30 days. Show **201** and the unit at Lekki.
-3. Execute the same body again: **409 DUPLICATE_UNIT_REFERENCE**. Say: "a retry after a lost response is detected, not duplicated."
-4. Add `"bankId": "<another bank>"` to the body: **422**. Say: "the bank comes from the token; staff cannot record units at another bank."
+## Before you start (not shown)
 
-## 2. A hospital searches and requests the last unit (journey 2)
+- [ ] 15 minutes before: open https://bloodlink-o2ie.onrender.com/actuator/health until it shows `{"status":"UP"}`.
+      The free host sleeps; the first request after a sleep takes about 30 s. On the day, also set the repository
+      variable `KEEP_WARM` to `true` (see `.github/workflows/keep-warm.yml`) and back to `false` afterwards.
+- [ ] Three browser profiles or windows, signed in as: `staff@lekki.bank.demo` (bank), `staff@yaba.hospital.demo`
+      (hospital 1), `donor@bloodlink.demo` (donor). Sign in to the others as the script reaches them.
+- [ ] Tabs open: the latest green **api** run in GitHub Actions (for "Rule check on the deployed service"), `docs/evidence.md`
+      (the race test red and green), `docs/performance.md`.
+- [ ] Note the time. The slot in 2a starts **10 minutes from now**, rounded up to the next 5 minutes.
+- [ ] As hospital 1, search Lekki's stock of **B, NEGATIVE, PLATELETS** (see "The combination for this run").
 
-1. Sign in as `staff@yaba.hospital.demo`, **Authorize**.
-2. **GET /availability** with `bloodGroup=O`, `rhesus=NEGATIVE`, `component=RED_CELLS`. Lagos Central shows **1** unit.
-   Point at `computedAt` and `matching` ("exact group, no substitution").
-3. **GET /requests?state=PENDING**: Yaba's pending emergency request to Lagos Central is there. (Ikorodu and Victoria
-   Island have one each too: three hospitals, one unit.)
-4. Show safe repeat submission: **POST /requests** with an `Idempotency-Key`, then the same key and body again:
-   **200** with `Idempotent-Replayed: true`, and still one request.
+## The combination for this run
 
-## 3. The bank approves; three hospitals, one unit (journey 3)
+Journeys 1 and 3 use **B, NEGATIVE, PLATELETS** at Lekki. Each rehearsal leaves about three more of these units in
+stock (they expire 5 days later), and journey 3 needs a request for the whole stock, which can ask for at most 20. If
+Lekki already shows more than 15, use the next combination for the whole run instead, in this order: **AB, NEGATIVE,
+PLASMA**; **A, NEGATIVE, RED_CELLS**; **O, NEGATIVE, WHOLE_BLOOD**. None of them is in the seeded stock.
 
-1. Sign in as `staff@lagos-central.bank.demo`, **Authorize**.
-2. **GET /requests?state=PENDING**, copy the three O-negative request ids.
-3. **POST /requests/{id}/approval** for the first: **201 APPROVED**, one reservation with its "hold ends at" time.
-4. Approve the second: **409 UNITS_NO_LONGER_AVAILABLE**, "Nothing was reserved; the request is still pending."
-5. Switch to the CI tab: "Approving one at a time is easy. The hard case is three at the same instant." Show
-   `ConcurrentApprovalIT`: three approvals released by a latch, five rounds, exactly one wins each time.
-6. Show the red run: with the protection removed, all three won the same unit. Name the three layers (`docs/evidence.md`).
+## Journey 2a: a bank opens a donation slot and donors book it
 
-## 4. If there is time
+| # | Who | Do | What to point out | Service call |
+| --- | --- | --- | --- | --- |
+| 1 | Lekki staff | Open a donation slot starting at the time you noted, 1 hour long, **capacity 1** | The slot belongs to the bank in the token; staff cannot open slots at another bank | `POST /donation-slots` |
+| 2 | Donor | View donation slots at Lekki; the new slot shows **1 place left** | Places left are counted from the bookings, with the time they were computed | `GET /donation-slots?bankId=…` |
+| 3 | Donor | Book the slot | **201**; the slot now shows 0 places left | `POST /donation-slots/{id}/bookings` |
+| 4 | Second donor (`donor2@bloodlink.demo`) | Try to book the same slot | **409 SLOT_FULL**, "This slot has no places left. Please choose another time." The screen stays usable | same |
 
-- **GET /requests?state=UNIT_EXPIRED** as `admin@bloodlink.demo`: a unit that expired while reserved, and the request
-  says what happened.
-- Wrong role: as the Yaba hospital account, **POST /units**: **403 FORBIDDEN**. `RoleRulesIT` proves it in CI.
-- Every response has an `X-Request-Id`; search the service log for it.
+Say: "Capacity is protected in the database: each booking holds a numbered place, and a place can be held once. Two
+donors booking the last place in the same second get one booking; `ConcurrentBookingIT` proves it, and fails with the
+protection removed (`docs/evidence.md`)."
 
-## 5. Issue, reverse, cancel (contract v0.2)
+## Journey 1: a hospital finds blood, requests it and receives it
 
-1. As `staff@lagos-central.bank.demo`, approve a pending request, then **POST /requests/{id}/issue**: **201 FULFILLED**.
-2. **POST /requests/{id}/issue/reversal** with a reason: **201 PENDING**. Open **GET /units/{unitId}** for its unit: the
-   history shows RESERVED, ISSUED, ISSUE_REVERSED, and the unit is AVAILABLE again (it had not expired).
-3. As the hospital that made a request, **POST /requests/{id}/cancellation** with a reason: **201 CANCELLED**, and its
-   unit is straight back in availability. As the bank or another hospital, the same call is refused (403 / 404).
-4. ADR-002: with a routine request holding the only unit and an emergency waiting, **POST /requests/{routineId}/hold-release**
-   with `forRequestId` and a reason: the emergency is APPROVED and the routine request is PENDING with a HOLD_RELEASED entry.
+| # | Who | Do | What to point out | Service call |
+| --- | --- | --- | --- | --- |
+| 1 | Hospital 1 | Search availability: **B, NEGATIVE, PLATELETS**. Note the count at Lekki (often 0) | Exact group, rhesus and component only: no substitution, and the screen says so. The figure shows when it was computed | `GET /availability?bloodGroup=B&rhesus=NEGATIVE&component=PLATELETS` |
+| 2 | Lekki staff | Record a unit: B, NEGATIVE, PLATELETS, collected today, expires in **5 days**, reference `DEMO-<HHMM>` | The bank comes from the token. A unit needs group, component, expiry and bank; expiry must be after collection | `POST /units` |
+| 3 | Lekki staff | Submit the same unit again | **409 DUPLICATE_UNIT_REFERENCE**: a retry after a lost response is caught, not duplicated | same |
+| 4 | Hospital 1 | Search again: Lekki shows **one more** unit | Availability is read from the records at the moment of the request, nothing cached | `GET /availability…` |
+| 5 | Hospital 1 | Request **1** unit of B negative platelets from Lekki, urgency **EMERGENCY**, needed by in 2 hours | No patient name anywhere: the request carries a reference and the hospital. State: PENDING | `POST /requests` (with `Idempotency-Key`) |
+| 6 | Lekki staff | Open the bank's requests; approve the new one | **APPROVED**; a specific unit is reserved, earliest expiry first, with "hold ends at" one hour away (emergency holds last 1 hour, ADR-002) | `POST /requests/{id}/approval` |
+| 7 | Hospital 1 | Open the request | The same state the bank sees, with the reserved unit and the hold time | `GET /requests/{id}` |
+| 8 | Lekki staff | Record the unit as issued | **FULFILLED**; the unit is ISSUED and leaves availability | `POST /requests/{id}/issue` |
+
+Say: "If three hospitals ask for the last unit at the same moment, exactly one gets it." Then show the latest **api**
+run, job "Rule check on the deployed service": three approvals sent together to this deployed service, one reservation.
+`ConcurrentApprovalIT` is the same rule in CI, shown failing with the protection removed (`docs/evidence.md`).
+
+## Journey 3: the bank handles what goes wrong
+
+| # | Who | Do | What to point out | Service call |
+| --- | --- | --- | --- | --- |
+| 1 | Lekki staff | Record two more B negative platelet units (references `DEMO-<HHMM>-2`, `-3`) | Stock for the next step | `POST /units` |
+| 2 | Hospital 1 | Request **1** unit, urgency **EMERGENCY** | Its hold will last 1 hour, so it shows on the dashboard in step 7 | `POST /requests` |
+| 3 | `staff@ikorodu.hospital.demo` | Search, then request **as many units as the search shows at Lekki** (the whole stock), urgency URGENT | Two requests now want more than exists. A request may ask for at most 20 units: if Lekki shows more, see "The combination for this run" | `POST /requests` |
+| 4 | Lekki staff | Approve hospital 1's request, then Ikorodu's | Hospital 1: APPROVED. Ikorodu: **409 UNITS_NO_LONGER_AVAILABLE**, "Only N of N+1 matching units are free now. Nothing was reserved; the request is still pending." All or nothing, never a partial reservation | `POST /requests/{id}/approval` |
+| 5 | Lekki staff | Decline Ikorodu's request with a reason ("Not enough stock; try Lagos Central") | **DECLINED**; Ikorodu sees the reason. A decline without a reason is refused | `POST /requests/{id}/declination` |
+| 6 | Lekki staff | Open journey 1's request (FULFILLED) and reverse the issue: "Recorded against the wrong request" | **PENDING** again. Open the unit: its history shows ISSUED **and** ISSUE_REVERSED, and the unit is AVAILABLE because it has not expired. Nothing is edited or deleted | `POST /requests/{id}/issue/reversal`, `GET /units/{id}` |
+| 7 | Lekki staff | Open the dashboard | **Holds ending soon**: hospital 1's emergency hold, ending within the hour. Units available by group: B negative went up by the units recorded today. Open requests, groups running low, units expiring within 3 days (today's units, at 5 days, are not in it yet), recent activity listing every step above. Every figure is computed from the records, with `computedAt` | `GET /dashboard` |
+| 8 | `admin@bloodlink.demo` | Requests in state **LAPSED**, then **UNIT_EXPIRED** | Seeded awkward cases. A lapsed hold is shown as lapsed and its unit as available even if the background job has not run (ADR-003). A unit that expired while reserved is EXPIRED and its request says what happened | `GET /requests?state=LAPSED`, `?state=UNIT_EXPIRED` |
+
+## Journey 2b: the bank records the visit
+
+Once the slot from 2a has started:
+
+| # | Who | Do | What to point out | Service call |
+| --- | --- | --- | --- | --- |
+| 1 | Lekki staff | Open the slot's bookings; record the donor as **ATTENDED** | Attendance can only be recorded once the slot has started (before that: 409 SLOT_NOT_STARTED) | `POST /bookings/{id}/attendance` |
+| 2 | Donor | Open my bookings | ATTENDED | `GET /bookings` |
+
+If the slot has not started yet, say so and show step 1's refusal instead: it proves the rule, then return to it.
+
+## After the demo
+
+Nothing to clean up. Each run leaves its records (units `DEMO-…`, requests, a slot) in the history, as real use would.
+Units recorded with a 5-day expiry pass through "expiring soon" and then EXPIRED on their own.
+
+## What the interface must support for this script
+
+To confirm with Ufoma before rehearsal. If a step is not in the interface, show it in Swagger and say so.
+
+1. Bank staff open a donation slot with a start time a few minutes away and a capacity of 1.
+2. A donor sees places left, books, and gets a clear "slot full" message.
+3. Bank staff record a unit, and see the duplicate-reference refusal.
+4. Availability search with the three filters, showing `computedAt` and the "exact match, no substitution" note.
+5. A hospital requests with urgency and needed-by time.
+6. Bank staff approve and decline (with a reason), and see the "no longer available" refusal on a usable screen.
+7. Bank staff issue and reverse an issue; a unit's history.
+8. The dashboard.
+9. The administrator filters requests by state (LAPSED, UNIT_EXPIRED).
+10. Bank staff record attendance.
 
 ## Likely questions
 
