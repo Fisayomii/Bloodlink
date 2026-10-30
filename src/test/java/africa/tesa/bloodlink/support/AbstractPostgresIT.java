@@ -26,7 +26,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public abstract class AbstractPostgresIT {
 
     @ServiceConnection
-    protected static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
+    protected static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18-alpine");
 
     /** Every demo account's password (README). */
     protected static final String DEMO_PASSWORD = "Demo-Password-1";

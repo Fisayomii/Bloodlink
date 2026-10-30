@@ -14,8 +14,9 @@ Both free tiers, both in Frankfurt, the closest Render region to Lagos. The serv
 1. Project `bloodlink`, region **AWS Europe Central 1 (Frankfurt)**.
 2. **Connect**, with **Connection pooling off**: use the **direct** host (no `-pooler` in it). The service sets the time zone
    on each connection, which a transaction pooler would lose.
-3. Note the PostgreSQL version (Settings). CI tests use `postgres:17-alpine` (`AbstractPostgresIT`); if Neon runs a
-   different major version, change that one line to match.
+3. Check the PostgreSQL version: SQL Editor, `SHOW server_version;` (18.6 on 30 Oct). CI tests use `postgres:18-alpine`
+   (`AbstractPostgresIT` and the two service containers in `.github/workflows/api.yml`); if Neon's major version
+   changes, change those three lines to match.
 4. Turn Neon's connection string into the three settings the service reads:
 
    | Neon gives | Render setting |

@@ -67,13 +67,13 @@ jobs:
   migrations:
     name: Migrations
     # Brief: "Versioned migrations that run automatically in the pipeline and can be reversed." On every pull request
-    # and push: apply every migration to an empty PostgreSQL 17, roll every one back to the empty baseline, and apply
+    # and push: apply every migration to an empty PostgreSQL 18, roll every one back to the empty baseline, and apply
     # them again. A changeset whose rollback is missing or wrong fails here, before it can reach the live database.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_DB: bloodlink
           POSTGRES_USER: bloodlink
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_DB: bloodlink
           POSTGRES_USER: bloodlink
