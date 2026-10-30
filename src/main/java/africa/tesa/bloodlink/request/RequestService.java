@@ -6,6 +6,7 @@ import africa.tesa.bloodlink.request.RequestController.BloodRequestCreate;
 import africa.tesa.bloodlink.request.RequestController.BloodRequestPage;
 import africa.tesa.bloodlink.request.RequestReader.Scope;
 import africa.tesa.bloodlink.web.ApiException;
+import africa.tesa.bloodlink.web.DateRange;
 import africa.tesa.bloodlink.web.ErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -78,6 +79,7 @@ public class RequestService {
         if (!user.is(Role.HOSPITAL_STAFF) || user.organisationId() == null) {
             throw ApiException.forbidden("Only hospital staff can request units.");
         }
+        DateRange.checkBody("neededBy", body.neededBy());
         if (!body.neededBy().toInstant().isAfter(Instant.now())) {
             throw ApiException.validation("neededBy", "Must be in the future.");
         }

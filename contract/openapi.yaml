@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.2.3
+  version: 0.2.4
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
@@ -17,7 +17,9 @@ info:
     - Every response carries `X-Request-Id`. The interface sends one per user action; the service
       generates one if it is missing and echoes it back. It appears in every log line.
     - Every failure returns the `Error` shape with a stable `code` the interface can switch on.
-    - Times are ISO 8601 with offset (UTC from the service). Dates are `YYYY-MM-DD`.
+    - Times are ISO 8601 with offset (UTC from the service). Dates are `YYYY-MM-DD`, sent as strings. Every date or
+      time a client sends falls between 2000-01-01 and 2100-12-31; outside that, a body field gets 422 and a query
+      value 400.
     - Matching is by the exact blood group, rhesus type and component entered. The service never
       substitutes one group for another.
     - All data is fictional. Requests never carry a patient name.
@@ -1628,11 +1630,11 @@ components:
         collectionDate:
           type: string
           format: date
-          description: Not in the future.
+          description: Not in the future. From 2000-01-01.
         expiryDate:
           type: string
           format: date
-          description: After collectionDate. The unit may be used up to and including this date.
+          description: After collectionDate. The unit may be used up to and including this date. Up to 2100-12-31.
 
     Unit:
       type: object
@@ -1780,7 +1782,7 @@ components:
         neededBy:
           type: string
           format: date-time
-          description: Must be in the future.
+          description: Must be in the future, and no later than 2100-12-31.
 
     Declination:
       type: object

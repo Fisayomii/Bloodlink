@@ -92,6 +92,25 @@ class UnitsIT extends AbstractPostgresIT {
     }
 
     @Test
+    void aDateSentAsANumberOrFarOutsideTheRangeIsRefusedNotStored() throws Exception {
+        // Found by the contract tests (30 Oct): a number was read as days since 1970, landed a million years ago, was
+        // stored as "minus infinity" and broke every later read of the unit.
+        String reference = newReference();
+        String asNumber = unitJson(reference, "O", "NEGATIVE", "RED_CELLS", -1, 30)
+            .replaceAll("\"collectionDate\":\"[^\"]+\"", "\"collectionDate\":-518849502");
+        String tooEarly = unitJson(newReference(), "O", "NEGATIVE", "RED_CELLS", -1, 30)
+            .replaceAll("\"collectionDate\":\"[^\"]+\"", "\"collectionDate\":\"1999-12-31\"");
+        String token = signIn(LAGOS_BANK_STAFF);
+
+        HttpResponse<String> number = postJson("/units", asNumber, token);
+        HttpResponse<String> early = postJson("/units", tooEarly, token);
+
+        assertThat(number.statusCode()).as(number.body()).isIn(400, 422);
+        assertValidationError(early, "collectionDate");
+        assertThat(get("/units?size=100", token).statusCode()).as("the list still reads").isEqualTo(200);
+    }
+
+    @Test
     void anUnknownBloodGroupNamesTheField() throws Exception {
         HttpResponse<String> response = postJson("/units", unitJson(newReference(), "C", "NEGATIVE", "RED_CELLS", -1, 30),
             signIn(LAGOS_BANK_STAFF));
