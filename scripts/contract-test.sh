@@ -25,6 +25,11 @@ NOT_YET_BUILT='^/dashboard'
 # no answer is reported as a failure instead of hanging the pipeline.
 MAX_TIME="${CONTRACT_TEST_MAX_TIME:-120}"
 
+# Which Schemathesis phases run. All three against the build in CI. Against the live service the pipeline sets
+# CONTRACT_TEST_PHASES=examples,coverage: random fuzzing sends attack-like headers (for example "__proto__"), and
+# Render's own firewall blocks those with an HTML 403 before they reach the service (found 30 October).
+PHASES="${CONTRACT_TEST_PHASES:-examples,coverage,fuzzing}"
+
 CHECKS=not_a_server_error,status_code_conformance,content_type_conformance,response_schema_conformance
 
 status=0
@@ -41,7 +46,7 @@ for account in "${ACCOUNTS[@]}"; do
       --exclude-path-regex "${NOT_YET_BUILT}" \
       --max-examples "${EXAMPLES}" \
       --max-time "${MAX_TIME}" \
-      --phases examples,coverage,fuzzing \
+      --phases "${PHASES}" \
       --workers 2 \
       --request-timeout 20 \
       --seed 26102026 \
