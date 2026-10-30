@@ -140,7 +140,7 @@ Cases worth showing:
 | --- | --- |
 | The race: Lagos Central has **one** O-negative red-cell unit; Yaba, Ikorodu and Victoria Island each have a pending emergency request for it | `GET /requests?state=PENDING` as `staff@lagos-central.bank.demo`; approve one, then another gets 409 |
 | Two units that **expired while reserved**: unit EXPIRED, reservation UNIT_EXPIRED, request UNIT_EXPIRED with a System history entry | `GET /requests?state=UNIT_EXPIRED` as the administrator |
-| A unit past its expiry date that **no job has marked** yet: still shown as EXPIRED | `GET /units?state=EXPIRED` as `staff@surulere.bank.demo` |
+| A unit past its expiry date: shown as EXPIRED at once; the sweep then marks it within a minute, with a System history entry | `GET /units?state=EXPIRED` as `staff@surulere.bank.demo`. The "before any job has run" case is proved by `UnitsIT` and `SeedDataIT`, with the sweep off |
 | Lapsed holds, declined requests with reasons, issued units, cancelled requests | `GET /requests` as the administrator |
 | AB-negative running low (one unit per bank) | `GET /availability?bloodGroup=AB&rhesus=NEGATIVE` |
 
@@ -172,6 +172,22 @@ reverse the issue and open `GET /units/{id}` for the unit: both ISSUED and ISSUE
 slot (4 places) and a 14:00 slot (6 places) on each of the next 14 days, and `donor@bloodlink.demo` has a place in the next
 Lagos Central 09:00 slot. To show the capacity rule, sign in as both donors and book the last place of a slot.
 
+## Dashboard (contract v0.2)
+
+`GET /dashboard`, for bank staff (their own bank) and the administrator (every bank, or one with `bankId`). Every figure is
+derived from the records when asked, in one consistent snapshot, and comes with `computedAt`:
+
+| Figure | Rule (also returned in the response, so the screen can say it) |
+| --- | --- |
+| Available by group | All eight groups, zero included, every component counted |
+| Running low | Fewer than 3 available units of a group (`lowStockThreshold`) |
+| Open requests | Pending, and approved and still holding units |
+| Holds ending soon | Running holds ending within 60 minutes (`holdsEndingWithinMinutes`) |
+| Units expiring soon | Available or reserved, expiry date within 3 days (`expiringWithinDays`) |
+| Recent activity | The 20 newest history entries for the bank's units and requests |
+
+The windows are settings (`app.dashboard.*`). `DashboardIT` checks the figures against the database.
+
 ## The rule this product depends on
 
 A unit is reserved for at most one request at a time, even when three hospitals ask for the last unit in the same second.
@@ -181,6 +197,8 @@ protection removed.
 
 Background work, and what happens if it does not run for an hour: nothing visible changes. Lapsed holds and expired units
 are computed on every read (ADR-003), so a lapsed hold is never shown as held and an expired unit is never offered.
+The sweep (`HoldAndExpirySweep`, once a minute, `SWEEP_ENABLED`) then writes the change down with a System history
+entry. It skips any request someone is acting on at that moment and picks it up on the next run.
 
 ## Simulated or out of scope
 
@@ -191,12 +209,12 @@ are computed on every read (ADR-003), so a lapsed hold is never shown as held an
   the service work for any request created through the service (see "Issue, reversal, cancellation" below).
 - No SMS, push, payments or courier arrangements.
 
-## Known limitations (26 Oct checkpoint)
+## Known limitations (30 Oct)
 
-- **Not built yet:** the hold and expiry sweep jobs (reads are already correct without them) and the dashboard. In
-  contract v0.2; planned for 30 Oct–1 Nov. Until then `GET /dashboard` answers 404.
+- **Every path in the contract is built.** The background sweep runs only while the service is awake (free hosting
+  sleeps); reads are correct either way (ADR-003).
 - **Partial approval** is not allowed: approval reserves every unit asked for, or nothing. Asked the client.
 - **Free hosting sleeps:** the first request after 15 idle minutes waits for the service to wake (measured 28 s).
 - **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).
-- **Still to measure:** the load test with its saturation point, contract tests against the deployed service, and the
-  index analysis for five queries (31 Oct–2 Nov). Screenshots and performance figures are added then.
+- **Still to measure:** the load test with its saturation point and the index analysis for five queries (31 Oct–2 Nov).
+  Screenshots and performance figures are added then.

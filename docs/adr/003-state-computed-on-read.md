@@ -1,6 +1,7 @@
 # ADR-003: Lapsed holds and expired units are computed when read
 
-- **Status:** Accepted, 2026-10-25. Built. The background sweep jobs are planned for 27–30 Oct.
+- **Status:** Accepted, 2026-10-25. Built. The background sweep (`HoldAndExpirySweep`) built 30 Oct: once a minute it writes
+  down lapsed holds and expired units with a System history entry. `SweepIT` shows reads are the same before and after it.
 - **Decided by:** Oluwafisayomi Aiyetogbon, Okechukwu Daniel.
 
 ## Context

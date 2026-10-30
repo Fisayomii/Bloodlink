@@ -66,6 +66,16 @@ app:
     routine: ${HOLD_ROUTINE:4h}
     urgent: ${HOLD_URGENT:2h}
     emergency: ${HOLD_EMERGENCY:1h}
+  dashboard:
+    # Stated in every dashboard response, so the screen can label them (decisions file, 27 Oct).
+    low-stock-threshold: 3
+    holds-ending-within: 60m
+    expiring-within-days: 3
+  sweep:
+    # The background job that writes down lapsed holds and expired units (HoldAndExpirySweep). Reads are correct
+    # without it; it keeps stored states and history tidy. Tests switch it off.
+    enabled: ${SWEEP_ENABLED:true}
+    every: 1m
   cors:
     # Comma-separated. On the host: ALLOWED_ORIGINS=https://<your-site>.netlify.app
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
