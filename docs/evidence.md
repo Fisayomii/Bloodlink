@@ -62,6 +62,18 @@ Same test on `main`, green: one 201, two 409s, one active hold, five rounds.
 
 ![Build and test passing on main](evidence/main-green.png)
 
+### Migrations run in the pipeline and can be reversed
+
+**Migrations** job, every pull request: every migration applied to an empty PostgreSQL 17, all rolled back to the empty
+baseline (0 tables left), then applied again.
+
+![Migrations job: update, rollback to empty, update](evidence/migrations-rollback-ci.png)
+
+**Deploy > Migrate the live database**: the pipeline migrates Neon before the new version starts. 25 migrations already
+applied were recognised; only the demo-slot top-up ran.
+
+![Deploy migrating the live database](evidence/migrations-live.png)
+
 ## The slot capacity rule fails without its protection
 
 The brief: "A donation slot cannot be booked beyond its capacity, including when two donors book the last place in the
@@ -97,7 +109,7 @@ the branch.
 | 2026-10-30 | Local PostgreSQL 16, booking SQL raced by six sessions for three places | Lock and index | 3 active bookings: full, never over | |
 | 2026-10-30 | Same, slot lock removed | Index only | 1 active booking: never over capacity; the others found their place taken | |
 | 2026-10-30 | Same, lock and index removed | Off | 6 active bookings on a 3-place slot | |
-| | CI, `ConcurrentBookingIT`, every pull request and push to `main` | On | Expected green: one 201 and one `SLOT_FULL`; three of ten (record the run) | |
+| | CI, `ConcurrentBookingIT`, every pull request and push to `main` | On | Expected green: one 201 and one `SLOT_FULL`; three of ten (record the run) | [green run](evidence/green-run.png) |
 | | CI, draft PR `evidence/no-slot-protection` | Off | Expected red: more bookings than places (record what the run shows) | |
 
 ## Every rule and the test that fails without it
