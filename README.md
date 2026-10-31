@@ -39,7 +39,7 @@ then the interface runs `contract:sync`.
 
    ```bash
    docker run -d --name bloodlink-db -p 5432:5432 \
-     -e POSTGRES_DB=bloodlink -e POSTGRES_USER=bloodlink -e POSTGRES_PASSWORD=bloodlink postgres:17-alpine
+     -e POSTGRES_DB=bloodlink -e POSTGRES_USER=bloodlink -e POSTGRES_PASSWORD=bloodlink postgres:18-alpine
    mvn spring-boot:run          # http://localhost:8080/actuator/health
    ```
 
@@ -101,7 +101,7 @@ does not fall asleep.
 `.github/workflows/api.yml`: **Contract lint** and **Build and test** run on every pull request and every push to `main`.
 **Deploy** runs only on `main` after both pass. It calls the host's deploy hook (`API_DEPLOY_HOOK` secret) and waits for
 `/actuator/health` at `API_URL` (repository variable). Turn the host's own auto-deploy off.
-**Migrations** applies every migration to an empty PostgreSQL 17, rolls every one back to the empty baseline and applies
+**Migrations** applies every migration to an empty PostgreSQL 18, rolls every one back to the empty baseline and applies
 them again, on every pull request; **Deploy** then migrates the live database with the same files before the new version
 starts (`docs/deploy.md`, "Migrations from the pipeline").
 Before the deploy, **Contract tests** start the new build with a throwaway database and check every answer against the

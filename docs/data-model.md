@@ -1,7 +1,7 @@
 # BloodLink data model
 
 Schema: `src/main/resources/db/changelog/changes/001-core.sql` (Liquibase, one changeset per object, each reversible).
-PostgreSQL 17. Allowed values match the enums in `contract/openapi.yaml` exactly.
+PostgreSQL 18 (production runs 18.6 on Neon; every test runs on 18). Allowed values match the enums in `contract/openapi.yaml` exactly.
 
 ```mermaid
 erDiagram
