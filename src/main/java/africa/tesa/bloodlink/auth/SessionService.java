@@ -23,7 +23,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
-/** Checks a demo account's email and password and issues a signed access token. */
+/** Checks an account's email and password and issues a signed access token. */
 @Service
 public class SessionService {
 
@@ -56,7 +56,15 @@ public class SessionService {
             // Same answer for "no such email" and "wrong password", so the message does not reveal which.
             throw new ApiException(HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_CREDENTIALS, "Email or password is incorrect.");
         }
-        Account user = account.get();
+        return issue(account.get());
+    }
+
+    /** A session for an account that has just been created (POST /donors): no password check, it was just set. */
+    Session sessionFor(String email) {
+        return issue(findByEmail(email).orElseThrow());
+    }
+
+    private Session issue(Account user) {
         Instant now = clock.instant();
         Instant expiresAt = now.plus(timeToLive);
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()

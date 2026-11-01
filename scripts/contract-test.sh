@@ -9,7 +9,8 @@
 # Any divergence makes this script fail, and the pipeline does not deploy.
 #
 # In the pipeline it runs twice: before deploying, against the new build started in CI with a throwaway database
-# (every role, more examples), and after deploying, against the live service (administrator only, so it creates no data).
+# (every role, more examples), and after deploying, against the live service (administrator only, so it creates no data;
+# POST /donors, the one operation anyone may call without signing in, is left out there).
 set -euo pipefail
 
 BASE_URL="${1:?service address}"
@@ -33,6 +34,14 @@ PHASES="${CONTRACT_TEST_PHASES:-examples,coverage,fuzzing}"
 
 CHECKS=not_a_server_error,status_code_conformance,content_type_conformance,response_schema_conformance
 
+# Operations to leave out, by operationId, space-separated. Against the live service the pipeline leaves out
+# createDonor (POST /donors): it needs no sign-in, so every generated request would create a real donor account in the
+# live database. The build in CI tests it as every other operation, against a throwaway database.
+EXCLUDE=()
+for operation in ${CONTRACT_TEST_EXCLUDE_OPERATIONS:-}; do
+  EXCLUDE+=(--exclude-operation-id "${operation}")
+done
+
 status=0
 for account in "${ACCOUNTS[@]}"; do
   echo "::group::Contract tests as ${account}"
@@ -49,6 +58,7 @@ for account in "${ACCOUNTS[@]}"; do
       --workers 1 \
       --request-timeout 20 \
       --seed "${SEED}" \
+      "${EXCLUDE[@]}" \
       --no-color \
       --report junit --report-junit-path "${report}"; then
     status=1

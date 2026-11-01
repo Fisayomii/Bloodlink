@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: BloodLink API
-  version: 0.2.5
+  version: 0.2.6
   description: |
     Contract between the BloodLink interface and service (Team 4, TeSA cohort 6).
     This file is the agreement: the service does not implement a path that is not here,
@@ -10,6 +10,8 @@ info:
     **Scope:** v0.1 the Monday journey (record units, search availability, request, approve or decline).
     v0.2 adds issue and its reversal, cancellation by the hospital, releasing a routine hold for an emergency
     (ADR-002), a unit's history, donation slots and bookings, and the dashboard.
+    v0.2.6 adds donor sign-up (`POST /donors`): a voluntary donor creates their own account. Staff and administrator
+    accounts are never created through the API.
 
     **Conventions**
     - Every operation states `x-safety`: `safe` (no change), `idempotent` (repeating has the same effect)
@@ -82,6 +84,67 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/InvalidCredentials'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /donors:
+    post:
+      tags: [Sessions]
+      operationId: createDonor
+      summary: A voluntary donor creates an account and is signed in
+      description: |
+        Creates a **donor** account and returns a session for it, so the donor goes straight to the donation slots.
+        Only donor accounts can be created here: the body has no role or organisation, and a body with any field the
+        contract does not list is refused (422). Bank, hospital and administrator accounts are set up by the team.
+
+        One account per email, compared without regard to case. A repeat with an email already in use answers 409
+        `EMAIL_ALREADY_REGISTERED`, so the interface offers sign-in instead. **Client's part:** after a timeout or a
+        dropped connection, try signing in with the same email and password before showing an error; if that
+        succeeds, the account was created.
+
+        No email verification or password reset (demonstration product); stated in the README.
+      x-safety: neither
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonorCreate'
+            example:
+              email: new.donor@example.org
+              displayName: Amaka Obi
+              password: A-good-password-1
+      responses:
+        '201':
+          description: Account created and signed in
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: '`EMAIL_ALREADY_REGISTERED`: an account with this email already exists. Offer sign-in.'
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/X-Request-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: EMAIL_ALREADY_REGISTERED
+                message: An account with this email already exists. Sign in instead.
+                requestId: 7f9c2b1e-4c1a-4f7e-9d0b-2a6c8e1f3b55
+                details: []
         '422':
           $ref: '#/components/responses/ValidationFailed'
         '500':
@@ -1445,6 +1508,7 @@ components:
             - SLOT_NOT_STARTED
             - ALREADY_BOOKED
             - BOOKING_NOT_ACTIVE
+            - EMAIL_ALREADY_REGISTERED
             - INTERNAL_ERROR
         message:
           type: string
@@ -1536,6 +1600,27 @@ components:
           format: password
           minLength: 8
           maxLength: 128
+
+    DonorCreate:
+      type: object
+      additionalProperties: false
+      required: [email, displayName, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        displayName:
+          type: string
+          description: 2 to 120 characters, not counting spaces or control characters at either end. Shown to bank staff on bookings.
+          minLength: 2
+          maxLength: 120
+        password:
+          type: string
+          format: password
+          description: 8 to 72 characters, and at most 72 bytes in UTF-8 (the limit of bcrypt, which stores it).
+          minLength: 8
+          maxLength: 72
 
     Session:
       type: object

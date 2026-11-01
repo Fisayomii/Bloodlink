@@ -244,6 +244,8 @@ jobs:
         # build in CI is fuzzed as every role with nothing in front of it.
         env:
           CONTRACT_TEST_PHASES: examples,coverage
+          # Sign-up needs no token, so testing it here would create real donor accounts in the live database.
+          CONTRACT_TEST_EXCLUDE_OPERATIONS: createDonor
         run: bash scripts/contract-test.sh "${{ vars.API_URL }}" 5 admin@bloodlink.demo
       - name: Keep the report on failure
         if: failure()

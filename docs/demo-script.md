@@ -21,7 +21,8 @@ because attendance can only be recorded once a slot has started; journeys 1 and 
       The free host sleeps; the first request after a sleep takes about 30 s. On the day, also set the repository
       variable `KEEP_WARM` to `true` (see `.github/workflows/keep-warm.yml`) and back to `false` afterwards.
 - [ ] Three browser profiles or windows, signed in as: `staff@lekki.bank.demo` (bank), `staff@yaba.hospital.demo`
-      (hospital 1), `donor@bloodlink.demo` (donor). Sign in to the others as the script reaches them.
+      (hospital 1). The donor window stays signed out: journey 2a starts with a new donor signing up. Sign in to the
+      others as the script reaches them.
 - [ ] Tabs open: the latest green **api** run in GitHub Actions (for "Rule check on the deployed service"), `docs/evidence.md`
       (the race test red and green), `docs/performance.md`.
 - [ ] Note the time. The slot in 2a starts **10 minutes from now**, rounded up to the next 5 minutes.
@@ -34,14 +35,15 @@ stock (they expire 5 days later), and journey 3 needs a request for the whole st
 Lekki already shows more than 15, use the next combination for the whole run instead, in this order: **AB, NEGATIVE,
 PLASMA**; **A, NEGATIVE, RED_CELLS**; **O, NEGATIVE, WHOLE_BLOOD**. None of them is in the seeded stock.
 
-## Journey 2a: a bank opens a donation slot and donors book it
+## Journey 2a: a new donor signs up, and books the last place in a slot
 
 | # | Who | Do | What to point out | Service call |
 | --- | --- | --- | --- | --- |
 | 1 | Lekki staff | Open a donation slot starting at the time you noted, 1 hour long, **capacity 1** | The slot belongs to the bank in the token; staff cannot open slots at another bank | `POST /donation-slots` |
-| 2 | Donor | View donation slots at Lekki; the new slot shows **1 place left** | Places left are counted from the bookings, with the time they were computed | `GET /donation-slots?bankId=…` |
-| 3 | Donor | Book the slot | **201**; the slot now shows 0 places left | `POST /donation-slots/{id}/bookings` |
-| 4 | Second donor (`donor2@bloodlink.demo`) | Try to book the same slot | **409 SLOT_FULL**, "This slot has no places left. Please choose another time." The screen stays usable | same |
+| 2 | New donor (signed-out window) | Sign up: email `donor-<HHMM>@example.org`, a name, a password. Then try the same email again | **201**, signed in straight away as a donor. Again: **409 EMAIL_ALREADY_REGISTERED**, "Sign in instead." Only donor accounts can be created this way | `POST /donors` |
+| 3 | New donor | View donation slots at Lekki; the new slot shows **1 place left** | Places left are counted from the bookings, with the time they were computed | `GET /donation-slots?bankId=…` |
+| 4 | New donor | Book the slot | **201**; the slot now shows 0 places left | `POST /donation-slots/{id}/bookings` |
+| 5 | Second donor (`donor2@bloodlink.demo`) | Try to book the same slot | **409 SLOT_FULL**, "This slot has no places left. Please choose another time." The screen stays usable | same |
 
 Say: "Capacity is protected in the database: each booking holds a numbered place, and a place can be held once. Two
 donors booking the last place in the same second get one booking; `ConcurrentBookingIT` proves it, and fails with the
@@ -84,13 +86,14 @@ Once the slot from 2a has started:
 | # | Who | Do | What to point out | Service call |
 | --- | --- | --- | --- | --- |
 | 1 | Lekki staff | Open the slot's bookings; record the donor as **ATTENDED** | Attendance can only be recorded once the slot has started (before that: 409 SLOT_NOT_STARTED) | `POST /bookings/{id}/attendance` |
-| 2 | Donor | Open my bookings | ATTENDED | `GET /bookings` |
+| 2 | New donor | Open my bookings | ATTENDED | `GET /bookings` |
 
 If the slot has not started yet, say so and show step 1's refusal instead: it proves the rule, then return to it.
 
 ## After the demo
 
-Nothing to clean up. Each run leaves its records (units `DEMO-…`, requests, a slot) in the history, as real use would.
+Nothing to clean up. Each run leaves its records (units `DEMO-…`, requests, a slot, a donor account) in the history, as
+real use would.
 Units recorded with a 5-day expiry pass through "expiring soon" and then EXPIRED on their own.
 
 ## What the interface must support for this script
@@ -98,15 +101,16 @@ Units recorded with a 5-day expiry pass through "expiring soon" and then EXPIRED
 To confirm with Ufoma before rehearsal. If a step is not in the interface, show it in Swagger and say so.
 
 1. Bank staff open a donation slot with a start time a few minutes away and a capacity of 1.
-2. A donor sees places left, books, and gets a clear "slot full" message.
-3. Bank staff record a unit, and see the duplicate-reference refusal.
-4. Availability search with the three filters, showing `computedAt` and the "exact match, no substitution" note.
-5. A hospital requests with urgency and needed-by time.
-6. Bank staff approve and decline (with a reason), and see the "no longer available" refusal on a usable screen.
-7. Bank staff issue and reverse an issue; a unit's history.
-8. The dashboard.
-9. The administrator filters requests by state (LAPSED, UNIT_EXPIRED).
-10. Bank staff record attendance.
+2. A new donor signs up (email, name, password) and sees "already registered, sign in instead" for a used email.
+3. A donor sees places left, books, and gets a clear "slot full" message.
+4. Bank staff record a unit, and see the duplicate-reference refusal.
+5. Availability search with the three filters, showing `computedAt` and the "exact match, no substitution" note.
+6. A hospital requests with urgency and needed-by time.
+7. Bank staff approve and decline (with a reason), and see the "no longer available" refusal on a usable screen.
+8. Bank staff issue and reverse an issue; a unit's history.
+9. The dashboard.
+10. The administrator filters requests by state (LAPSED, UNIT_EXPIRED).
+11. Bank staff record attendance.
 
 ## Likely questions
 

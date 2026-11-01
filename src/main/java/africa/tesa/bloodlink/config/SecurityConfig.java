@@ -50,7 +50,7 @@ public class SecurityConfig {
                 // Spring's internal error page dispatch must not itself demand a token.
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers(HttpMethod.POST, "/sessions").permitAll()
+                .requestMatchers(HttpMethod.POST, "/sessions", "/donors").permitAll()
                 // API docs: the Swagger page and the contract it shows. Both are public, like the repository.
                 .requestMatchers(HttpMethod.GET, "/", "/index.html", "/openapi.yaml", "/favicon.ico").permitAll()
                 // Role rules, one line per operation in the contract that is limited to certain roles.

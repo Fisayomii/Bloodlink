@@ -127,6 +127,9 @@ All fictional. Every account's password is **`Demo-Password-1`**.
 | Donor | `donor@bloodlink.demo` | none |
 | Donor | `donor2@bloodlink.demo` | none |
 
+New donors can also create their own account with `POST /donors` (email, display name, password); staff and administrator
+accounts are only ever created by the team.
+
 **Try it in Swagger** (http://localhost:8080/): open **POST /sessions → Try it out**, sign in with one of the accounts above,
 copy `accessToken` from the response, click **Authorize** (padlock, top right), paste it, and every call now runs as that user.
 
@@ -166,6 +169,7 @@ reverse the issue and open `GET /units/{id}` for the unit: both ISSUED and ISSUE
 
 | Who | Call | What happens |
 | --- | --- | --- |
+| Anyone, not signed in | `POST /donors` | A new donor creates their own account and is signed in (contract v0.2.6). Donor accounts only; an email already in use gets 409 |
 | Anyone signed in | `GET /donation-slots` | Slots in the next 14 days (Lagos dates), with `placesLeft` and `computedAt` |
 | Bank staff | `POST /donation-slots` with an `Idempotency-Key` | Opens a slot at their own bank (up to 8 hours, 1 to 50 places); a retry with the same key opens nothing new |
 | Donors | `POST /donation-slots/{id}/bookings` | Takes a place. Never beyond capacity, even for two donors in the same second (ADR-006); a second booking of the same slot is refused |
@@ -220,7 +224,9 @@ entry. It skips any request someone is acting on at that moment and picks it up 
   sleeps); reads are correct either way (ADR-003).
 - **Partial approval** is not allowed: approval reserves every unit asked for, or nothing. Asked the client.
 - **Free hosting sleeps:** the first request after 15 idle minutes waits for the service to wake (measured 28 s).
-- **Sign-in** has no refresh tokens, password reset or rate limiting (demonstration accounts only).
+- **Sign-in and donor sign-up** have no email verification, password reset, refresh tokens or rate limiting: anyone can
+  create donor accounts with any email address. Acceptable for a demonstration with fictional data; a real launch needs
+  all four.
 - **Index analysis done** (30 Oct): the five most important queries, measured at 50,000 and 500,000 units, in
   `docs/data-model.md`. Reproduce it with the three scripts in `scripts/index-analysis/`.
 - **Performance (30 Oct, two runs on the free host):** target screens p95 under 500 ms, sign-in under 1,000 ms. Not met
